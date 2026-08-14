@@ -53,7 +53,7 @@ class AccountConcurrencyIntegrationTest {
     void setUp() {
         executor = Executors.newFixedThreadPool(2);
 
-        String accountNumber = "ACC-CONC-" + UUID.randomUUID();
+        String accountNumber = "ACC-CONC-" + UUID.randomUUID().toString().substring(0, 12);
         var account = accountService.create(new CreateAccountRequest(accountNumber, "Concurrency Test"));
         accountId = account.id();
 
