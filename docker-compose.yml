@@ -42,6 +42,27 @@ services:
       timeout: 5s
       retries: 10
 
+  postgres-ledger:
+    image: postgres:17
+    container_name: nexapay-ledger-postgres
+
+    environment:
+      POSTGRES_DB: nexapay_ledger
+      POSTGRES_USER: nexapay
+      POSTGRES_PASSWORD: nexapay
+
+    ports:
+      - "5437:5432"
+
+    volumes:
+      - nexapay_ledger_postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexapay -d nexapay_ledger"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   kafka:
     image: apache/kafka:3.9.1
     container_name: nexapay-kafka
@@ -66,3 +87,4 @@ services:
 volumes:
   nexapay_postgres_data:
   nexapay_accounts_postgres_data:
+  nexapay_ledger_postgres_data:
