@@ -41,6 +41,8 @@ class AccountConcurrencyIntegrationTest {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
+        registry.add("nexapay.outbox.enabled", () -> "false");
+        registry.add("nexapay.kafka.manage-topics", () -> "false");
     }
 
     @Autowired
