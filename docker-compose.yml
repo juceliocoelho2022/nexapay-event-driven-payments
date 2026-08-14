@@ -21,6 +21,26 @@ services:
       timeout: 5s
       retries: 10
 
+  postgres-accounts:
+    image: postgres:17
+    container_name: nexapay-accounts-postgres
+
+    environment:
+      POSTGRES_DB: nexapay_accounts
+      POSTGRES_USER: nexapay
+      POSTGRES_PASSWORD: nexapay
+
+    ports:
+      - "5436:5432"
+
+    volumes:
+      - nexapay_accounts_postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexapay -d nexapay_accounts"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   kafka:
     image: apache/kafka:3.9.1
@@ -31,29 +51,18 @@ services:
 
     environment:
       KAFKA_NODE_ID: 1
-
       KAFKA_PROCESS_ROLES: broker,controller
-
       KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
-
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
-
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
-
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-
       KAFKA_NUM_PARTITIONS: 3
-
 
 volumes:
   nexapay_postgres_data:
+  nexapay_accounts_postgres_data:
