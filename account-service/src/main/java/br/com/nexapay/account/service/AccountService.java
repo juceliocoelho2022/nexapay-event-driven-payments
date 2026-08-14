@@ -40,20 +40,25 @@ public class AccountService {
 
     @Transactional
     public AccountResponse credit(UUID id, AmountRequest request) {
-        Account account = findAccount(id);
+        Account account = findAccountForUpdate(id);
         account.credit(request.amount());
         return AccountResponse.from(account);
     }
 
     @Transactional
     public AccountResponse debit(UUID id, AmountRequest request) {
-        Account account = findAccount(id);
+        Account account = findAccountForUpdate(id);
         account.debit(request.amount());
         return AccountResponse.from(account);
     }
 
     private Account findAccount(UUID id) {
         return accountRepository.findById(id)
+                .orElseThrow(() -> new AccountNotFoundException(id));
+    }
+
+    private Account findAccountForUpdate(UUID id) {
+        return accountRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new AccountNotFoundException(id));
     }
 }
