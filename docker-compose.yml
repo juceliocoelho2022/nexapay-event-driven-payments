@@ -63,6 +63,27 @@ services:
       timeout: 5s
       retries: 10
 
+  postgres-fraud:
+    image: postgres:17
+    container_name: nexapay-fraud-postgres
+
+    environment:
+      POSTGRES_DB: nexapay_fraud
+      POSTGRES_USER: nexapay
+      POSTGRES_PASSWORD: nexapay
+
+    ports:
+      - "5438:5432"
+
+    volumes:
+      - nexapay_fraud_postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexapay -d nexapay_fraud"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   kafka:
     image: apache/kafka:3.9.1
     container_name: nexapay-kafka
@@ -88,3 +109,4 @@ volumes:
   nexapay_postgres_data:
   nexapay_accounts_postgres_data:
   nexapay_ledger_postgres_data:
+  nexapay_fraud_postgres_data:
