@@ -1,0 +1,25 @@
+server:
+  port: 8085
+
+spring:
+  application:
+    name: nexapay-auth-service
+
+  datasource:
+    url: jdbc:postgresql://localhost:5439/nexapay_auth
+    username: nexapay
+    password: nexapay
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+
+  flyway:
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics

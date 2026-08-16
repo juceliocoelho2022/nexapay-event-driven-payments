@@ -27,5 +27,6 @@
         <module>account-service</module>
         <module>ledger-service</module>
         <module>fraud-service</module>
+        <module>auth-service</module>
     </modules>
 </project>
