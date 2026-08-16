@@ -43,7 +43,7 @@ public class PaymentService {
 
         return paymentRepository.findByIdempotencyKey(idempotencyKey)
                 .map(paymentMapper::toResponse)
-                .orElseGet(() -> createNewPayment(idempotencyKey, request));
+                .orElseGet(() -> createOrLoadPayment(idempotencyKey, request));
     }
 
     @Transactional(readOnly = true)
@@ -54,7 +54,7 @@ public class PaymentService {
         return paymentMapper.toResponse(payment);
     }
 
-    private PaymentResponse createNewPayment(
+    private PaymentResponse createOrLoadPayment(
             String idempotencyKey,
             CreatePixPaymentRequest request) {
 
@@ -73,6 +73,25 @@ public class PaymentService {
                 now
         );
 
+        int inserted = paymentRepository.insertIfIdempotencyKeyAbsent(
+                paymentId,
+                idempotencyKey,
+                request.payerAccountId(),
+                request.pixKey(),
+                request.amount(),
+                request.description(),
+                PaymentStatus.PENDING.name(),
+                now
+        );
+
+        if (inserted == 0) {
+            return paymentRepository.findByIdempotencyKey(idempotencyKey)
+                    .map(paymentMapper::toResponse)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "Idempotency key was claimed but payment could not be loaded: " + idempotencyKey
+                    ));
+        }
+
         PaymentCreatedEvent event = new PaymentCreatedEvent(
                 eventId,
                 paymentId,
@@ -81,8 +100,6 @@ public class PaymentService {
                 request.amount(),
                 now
         );
-
-        Payment saved = paymentRepository.save(payment);
 
         OutboxEvent outbox = new OutboxEvent(
                 eventId,
@@ -95,7 +112,7 @@ public class PaymentService {
 
         outboxEventRepository.save(outbox);
 
-        return paymentMapper.toResponse(saved);
+        return paymentMapper.toResponse(payment);
     }
 
     private String toJson(PaymentCreatedEvent event) {
