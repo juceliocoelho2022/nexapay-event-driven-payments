@@ -42,12 +42,13 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasAuthority('AUTH_SELF_READ')")
     public MeResponse me(@AuthenticationPrincipal Jwt jwt) {
         return new MeResponse(
                 UUID.fromString(jwt.getSubject()),
                 jwt.getClaimAsString("email"),
-                jwt.getClaimAsStringList("roles")
+                jwt.getClaimAsStringList("roles"),
+                jwt.getClaimAsStringList("permissions")
         );
     }
 }
