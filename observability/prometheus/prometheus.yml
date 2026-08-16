@@ -1,0 +1,24 @@
+global:
+  scrape_interval: 5s
+  scrape_timeout: 3s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: nexapay-services
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["host.docker.internal:8081"]
+        labels:
+          service: payment
+      - targets: ["host.docker.internal:8082"]
+        labels:
+          service: account
+      - targets: ["host.docker.internal:8083"]
+        labels:
+          service: ledger
+      - targets: ["host.docker.internal:8084"]
+        labels:
+          service: fraud
+      - targets: ["host.docker.internal:8085"]
+        labels:
+          service: auth
