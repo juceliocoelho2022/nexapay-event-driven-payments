@@ -9,109 +9,102 @@
 </p>
 
 <p align="center">
-  Plataforma de pagamentos orientada a eventos desenvolvida com Java 21, Spring Boot, Apache Kafka, PostgreSQL e Transactional Outbox.
+  Plataforma de pagamentos orientada a eventos desenvolvida com Java 21, Spring Boot, Apache Kafka, PostgreSQL, Flyway, Docker Compose e Transactional Outbox.
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Java-21-orange" alt="Java 21"/>
-  <img src="https://img.shields.io/badge/Spring%20Boot-3.5.16-brightgreen" alt="Spring Boot"/>
-  <img src="https://img.shields.io/badge/PostgreSQL-17-blue" alt="PostgreSQL"/>
-  <img src="https://img.shields.io/badge/Apache%20Kafka-3.9-black" alt="Kafka"/>
-  <img src="https://img.shields.io/badge/Docker-Compose-blue" alt="Docker"/>
+  <img src="https://img.shields.io/badge/Spring%20Boot-3.5.16-brightgreen" alt="Spring Boot 3.5.16"/>
+  <img src="https://img.shields.io/badge/PostgreSQL-17-blue" alt="PostgreSQL 17"/>
+  <img src="https://img.shields.io/badge/Apache%20Kafka-3.9.1-black" alt="Apache Kafka 3.9.1"/>
+  <img src="https://img.shields.io/badge/Docker-Compose-blue" alt="Docker Compose"/>
+  <img src="https://img.shields.io/badge/Sprints-4%20conclu%C3%ADdas-success" alt="4 Sprints concluídas"/>
 </p>
 
 ---
 
 ## Sobre o projeto
 
-O **NexaPay** é uma plataforma de pagamentos criada para demonstrar conhecimentos de desenvolvimento backend Java aplicados a um cenário de sistemas financeiros distribuídos.
+O **NexaPay** é uma plataforma backend de pagamentos criada para demonstrar conceitos aplicados a sistemas financeiros distribuídos e orientados a eventos.
 
-A arquitetura foi pensada para evoluir progressivamente para microsserviços orientados a eventos.
+O projeto evolui de forma incremental por Sprints. Atualmente, as **Sprints 1 a 4 estão concluídas e incorporadas à `main`**, com quatro serviços Maven independentes:
 
-A primeira Sprint implementa:
+- `payment-service` — criação e consulta de pagamentos PIX;
+- `account-service` — contas, saldo, crédito e débito com controle transacional;
+- `ledger-service` — histórico paginado de movimentações de conta consumidas via Kafka;
+- `fraud-service` — análise assíncrona de risco para pagamentos.
 
-- API REST para pagamentos PIX;
-- Java 21;
-- Spring Boot;
-- PostgreSQL;
-- Spring Data JPA;
-- Hibernate;
-- Apache Kafka;
-- Docker Compose;
-- Flyway;
-- Bean Validation;
-- Idempotency-Key;
-- Transactional Outbox;
-- tratamento global de exceções;
-- JUnit 5;
-- Mockito;
-- Spring Boot Actuator.
+A solução utiliza bancos PostgreSQL separados por serviço, comunicação assíncrona com Kafka e processamento orientado a eventos.
 
-### Status
-
-**Sprint 1 concluída.**
-
-O fluxo:
+### Status atual
 
 ```text
-API REST
-   |
-   v
-Payment Service
-   |
-   +--> PostgreSQL
-   |
-   +--> Transactional Outbox
-             |
-             v
-        Apache Kafka
+Sprint 1 — Payment Service   ✅ Concluída
+Sprint 2 — Account Service   ✅ Concluída
+Sprint 3 — Ledger Service    ✅ Concluída
+Sprint 4 — Fraud Service     ✅ Concluída
+Sprint 5 — Segurança         ⏳ Próxima
 ```
-
-já está funcionando.
 
 ---
 
 ## Arquitetura
 
-A imagem abaixo apresenta a arquitetura planejada para evolução do NexaPay.
-
 <p align="center">
   <img src="docs/images/nexapay-architecture.png" alt="Arquitetura NexaPay"/>
 </p>
 
-> Alguns componentes exibidos no diagrama ainda fazem parte do roadmap e serão implementados nas próximas Sprints.
+> O diagrama visual representa a direção arquitetural do projeto. Alguns componentes do roadmap, como autenticação, API Gateway, observabilidade completa e frontend, ainda serão implementados em Sprints futuras.
 
-### Arquitetura atual
+### Arquitetura atualmente implementada
 
 ```text
-Cliente
-   |
-   v
-PaymentController
-   |
-   v
-PaymentService
-   |
-   +-----------------------+
-   |                       |
-   v                       v
-PostgreSQL            Outbox Events
-                           |
-                           v
-                    OutboxPublisher
-                           |
-                           v
-                     Apache Kafka
-                           |
-                           v
-              nexapay.payment.created.v1
+                              ┌────────────────────┐
+                              │      Cliente       │
+                              └─────────┬──────────┘
+                                        │
+                   ┌────────────────────┴────────────────────┐
+                   │                                         │
+                   v                                         v
+        ┌──────────────────────┐                  ┌──────────────────────┐
+        │   Payment Service    │                  │   Account Service    │
+        │      :8081           │                  │      :8082           │
+        └──────────┬───────────┘                  └──────────┬───────────┘
+                   │                                         │
+          ┌────────┴────────┐                       ┌────────┴────────┐
+          │                 │                       │                 │
+          v                 v                       v                 v
+   PostgreSQL :5435   Transactional Outbox   PostgreSQL :5436   Transactional Outbox
+                            │                                       │
+                            v                                       v
+                         Kafka                                   Kafka
+                            │                                       │
+              nexapay.payment.created.v1              ┌────────────┴────────────┐
+                            │                          │                         │
+                            v                          v                         v
+                  ┌──────────────────┐     nexapay.account.credited.v1  nexapay.account.debited.v1
+                  │  Fraud Service   │                          │
+                  │      :8084       │                          v
+                  └────────┬─────────┘                 ┌──────────────────┐
+                           │                           │  Ledger Service   │
+                           v                           │      :8083        │
+                    PostgreSQL :5438                  └────────┬─────────┘
+                                                              │
+                                                              v
+                                                       PostgreSQL :5437
 ```
+
+### Semântica de entrega
+
+O uso de Transactional Outbox garante que a alteração de domínio e o evento correspondente sejam persistidos de forma consistente no banco do serviço produtor.
+
+A publicação no Kafka trabalha com semântica **at-least-once**. Por isso, os consumidores precisam ser preparados para reprocessamento e duplicidade de mensagens.
 
 ---
 
-# Stack
+## Stack
 
-## Backend
+### Backend
 
 - Java 21
 - Spring Boot 3.5.16
@@ -119,65 +112,79 @@ PostgreSQL            Outbox Events
 - Spring Data JPA
 - Hibernate
 - Bean Validation
-- Maven
+- Maven multi-module
 
-## Banco de Dados
+### Banco de dados
 
 - PostgreSQL 17
 - Flyway
 - JPA/Hibernate
+- banco dedicado por serviço
 
-## Mensageria
+### Mensageria
 
-- Apache Kafka
-- Kafka Producer
+- Apache Kafka 3.9.1
+- Kafka Producer e Consumer
 - Event-Driven Architecture
-- Transactional Outbox
+- Transactional Outbox em serviços produtores
+- processamento at-least-once
 
-## Testes
+### Testes
 
 - JUnit 5
 - Mockito
+- Spring Boot Test
+- MockMvc
+- Testcontainers
 
-## Infraestrutura
+### Infraestrutura
 
 - Docker
 - Docker Compose
 - Spring Boot Actuator
 
-## Conceitos aplicados
+### Conceitos aplicados
 
-- REST API
-- Idempotência
-- DTO
-- Repository Pattern
-- Service Layer
-- tratamento global de exceções
+- REST APIs
 - arquitetura em camadas
-- eventos assíncronos
+- Service Layer
+- Repository Pattern
+- DTOs
+- idempotência
+- locking pessimista
 - consistência transacional
-- at-least-once delivery
+- eventos assíncronos
+- Transactional Outbox
+- consumidores orientados a eventos
+- paginação
+- análise de risco baseada em regras
 
 ---
 
-# Funcionalidades
+# Serviços
 
-## Criar pagamento PIX
+## 1. Payment Service — Sprint 1 ✅
 
-Endpoint:
+Responsável pela criação e consulta de pagamentos PIX.
+
+**Porta da aplicação:** `8081`  
+**Banco:** `nexapay_payments`  
+**PostgreSQL:** `localhost:5435`
+
+### Endpoints
 
 ```http
 POST /api/v1/payments/pix
+GET  /api/v1/payments/{id}
 ```
 
-Header obrigatório:
+Header obrigatório para criação:
 
 ```http
 Idempotency-Key: pedido-001
-Content-Type: application/json
 ```
 
-Body:
+Exemplo:
 
 ```json
 {
@@ -188,147 +195,13 @@ Body:
 }
 ```
 
-Exemplo de resposta:
-
-```json
-{
-  "id": "7014a517-0738-4d49-9db4-9578ced44089",
-  "payerAccountId": "ACC-1001",
-  "pixKey": "cliente@email.com",
-  "amount": 250.00,
-  "description": "Pagamento NexaPay",
-  "status": "PENDING",
-  "createdAt": "2026-08-13T21:57:51.521587Z"
-}
-```
-
----
-
-## Consultar pagamento
-
-```http
-GET /api/v1/payments/{id}
-```
-
-Exemplo:
-
-```http
-GET /api/v1/payments/7014a517-0738-4d49-9db4-9578ced44089
-```
-
----
-
-# Idempotência
-
-O NexaPay utiliza o header:
-
-```http
-Idempotency-Key
-```
-
-para impedir a criação duplicada de pagamentos.
-
-Exemplo:
-
-```text
-Primeira requisição
-
-pedido-001
-   |
-   v
-Pagamento criado
-   |
-   v
-payment-id-123
-
-
-Segunda requisição
-
-pedido-001
-   |
-   v
-Pagamento já existe
-   |
-   v
-payment-id-123
-```
-
-Isso protege o sistema contra situações como:
-
-- clique duplo;
-- timeout do cliente;
-- retry automático;
-- problemas de rede;
-- reenvio acidental da mesma operação.
-
----
-
-# Transactional Outbox
-
-Um dos principais recursos técnicos do NexaPay é o uso do padrão:
-
-**Transactional Outbox**
-
-O pagamento e o evento são gravados dentro da mesma transação.
-
-```text
-@Transactional
-      |
-      +--> INSERT payments
-      |
-      +--> INSERT outbox_events
-      |
-      v
-    COMMIT
-```
-
-Depois do commit:
-
-```text
-outbox_events
-      |
-      v
-OutboxPublisher
-      |
-      v
-Apache Kafka
-      |
-      v
-published = true
-```
-
-Isso evita um problema clássico de sistemas distribuídos:
-
-```text
-Pagamento salvo no banco
-        |
-        X
-Kafka falhou antes da publicação
-```
-
-Com Outbox:
-
-```text
-Pagamento
-    +
-Evento
-
-salvos na mesma transação
-```
-
-O evento pode ser publicado posteriormente caso Kafka esteja temporariamente indisponível.
-
----
-
-# Kafka
-
-Tópico utilizado:
+O Payment Service persiste o pagamento e um Outbox Event na mesma transação. Depois, o Outbox Publisher publica o evento:
 
 ```text
 nexapay.payment.created.v1
 ```
 
-Exemplo de evento:
+Exemplo de contrato:
 
 ```json
 {
@@ -341,54 +214,135 @@ Exemplo de evento:
 }
 ```
 
-O publisher trabalha com:
-
-```text
-at-least-once delivery
-```
-
-Por isso os próximos consumidores também deverão ser idempotentes.
-
 ---
 
-# Banco de Dados
+## 2. Account Service — Sprint 2 ✅
 
-## payments
+Responsável por contas e operações de saldo.
 
-Tabela responsável pelos pagamentos.
+**Porta da aplicação:** `8082`  
+**Banco:** `nexapay_accounts`  
+**PostgreSQL:** `localhost:5436`
 
-Principais campos:
+### Endpoints
 
-```text
-id
-idempotency_key
-payer_account_id
-pix_key
-amount
-description
-status
-created_at
+```http
+POST /api/v1/accounts
+GET  /api/v1/accounts/{id}
+POST /api/v1/accounts/{id}/credit
+POST /api/v1/accounts/{id}/debit
 ```
 
-## outbox_events
+### Recursos implementados
 
-Tabela responsável pelos eventos que serão publicados no Kafka.
+- criação e consulta de contas;
+- crédito e débito;
+- valores monetários com `BigDecimal`;
+- transações com Spring;
+- locking pessimista (`PESSIMISTIC_WRITE`) nas operações que alteram saldo;
+- Transactional Outbox;
+- publicação de eventos de movimentação.
 
-Principais campos:
+Tópicos produzidos:
 
 ```text
-id
-aggregate_id
-event_type
-payload
-published
-created_at
-published_at
+nexapay.account.credited.v1
+nexapay.account.debited.v1
 ```
 
 ---
 
-# Estrutura do Projeto
+## 3. Ledger Service — Sprint 3 ✅
+
+Responsável por consumir eventos financeiros do Account Service e manter o histórico de lançamentos da conta.
+
+**Porta da aplicação:** `8083`  
+**Banco:** `nexapay_ledger`  
+**PostgreSQL:** `localhost:5437`  
+**Kafka consumer group:** `nexapay-ledger-service`
+
+### Eventos consumidos
+
+```text
+nexapay.account.credited.v1
+nexapay.account.debited.v1
+```
+
+### Endpoint
+
+```http
+GET /api/v1/ledger/accounts/{accountId}
+```
+
+A consulta retorna um histórico paginado das movimentações associadas à conta.
+
+### Recursos implementados
+
+- Kafka Consumer;
+- persistência de lançamentos de crédito e débito;
+- proteção contra replay por `eventId`;
+- histórico por conta;
+- paginação via Spring Data.
+
+---
+
+## 4. Fraud Service — Sprint 4 ✅
+
+Responsável por analisar de forma assíncrona pagamentos criados pelo Payment Service.
+
+**Porta da aplicação:** `8084`  
+**Banco:** `nexapay_fraud`  
+**PostgreSQL:** `localhost:5438`  
+**Kafka consumer group:** `nexapay-fraud-service`
+
+### Evento consumido
+
+```text
+nexapay.payment.created.v1
+```
+
+### Motor de regras atual
+
+```text
+Valor < R$ 5.000                 → APPROVED | score 20
+R$ 5.000 <= valor < R$ 10.000   → REVIEW   | score 70
+Valor >= R$ 10.000              → BLOCKED  | score 95
+```
+
+> `BLOCKED`, `REVIEW` e `APPROVED` representam atualmente a **decisão da análise de fraude**. A Sprint 4 não altera automaticamente o status do Payment Service.
+
+### Endpoint
+
+```http
+GET /api/v1/fraud/payments/{paymentId}
+```
+
+Exemplo de retorno:
+
+```json
+{
+  "paymentId": "594c63c0-522a-46ec-bf94-f3f8e92759ba",
+  "amount": 12000.00,
+  "decision": "BLOCKED",
+  "riskScore": 95,
+  "reason": "Payment amount reached the high-risk threshold"
+}
+```
+
+### Recursos implementados
+
+- Kafka Consumer;
+- regras determinísticas de risco;
+- decisões `APPROVED`, `REVIEW` e `BLOCKED`;
+- score de risco de 0 a 100;
+- persistência com Flyway/PostgreSQL;
+- proteção contra replay por `eventId`;
+- API para consulta da decisão;
+- testes de integração com Testcontainers e MockMvc.
+
+---
+
+# Estrutura do projeto
 
 ```text
 nexapay-event-driven-payments
@@ -399,31 +353,69 @@ nexapay-event-driven-payments
 │       └── nexapay-architecture.png
 │
 ├── payment-service
-│   │
 │   ├── src
-│   │   │
 │   │   ├── main
-│   │   │   │
-│   │   │   ├── java
-│   │   │   │   └── br
-│   │   │   │       └── com
-│   │   │   │           └── nexapay
-│   │   │   │               └── payment
-│   │   │   │                   ├── api
-│   │   │   │                   ├── domain
-│   │   │   │                   ├── event
-│   │   │   │                   ├── exception
-│   │   │   │                   ├── messaging
-│   │   │   │                   ├── repository
-│   │   │   │                   └── service
-│   │   │   │
+│   │   │   ├── java/br/com/nexapay/payment
+│   │   │   │   ├── api
+│   │   │   │   ├── domain
+│   │   │   │   ├── event
+│   │   │   │   ├── exception
+│   │   │   │   ├── messaging
+│   │   │   │   ├── repository
+│   │   │   │   └── service
 │   │   │   └── resources
-│   │   │       ├── db
-│   │   │       │   └── migration
+│   │   │       ├── db/migration
 │   │   │       └── application.yml
-│   │   │
 │   │   └── test
-│   │
+│   └── pom.xml
+│
+├── account-service
+│   ├── src
+│   │   ├── main
+│   │   │   ├── java/br/com/nexapay/account
+│   │   │   │   ├── api
+│   │   │   │   ├── domain
+│   │   │   │   ├── event
+│   │   │   │   ├── exception
+│   │   │   │   ├── messaging
+│   │   │   │   ├── repository
+│   │   │   │   └── service
+│   │   │   └── resources
+│   │   │       ├── db/migration
+│   │   │       └── application.yml
+│   │   └── test
+│   └── pom.xml
+│
+├── ledger-service
+│   ├── src
+│   │   ├── main
+│   │   │   ├── java/br/com/nexapay/ledger
+│   │   │   │   ├── api
+│   │   │   │   ├── domain
+│   │   │   │   ├── event
+│   │   │   │   ├── messaging
+│   │   │   │   ├── repository
+│   │   │   │   └── service
+│   │   │   └── resources
+│   │   │       ├── db/migration
+│   │   │       └── application.yml
+│   │   └── test
+│   └── pom.xml
+│
+├── fraud-service
+│   ├── src
+│   │   ├── main
+│   │   │   ├── java/br/com/nexapay/fraud
+│   │   │   │   ├── api
+│   │   │   │   ├── domain
+│   │   │   │   ├── event
+│   │   │   │   ├── messaging
+│   │   │   │   ├── repository
+│   │   │   │   └── service
+│   │   │   └── resources
+│   │   │       ├── db/migration
+│   │   │       └── application.yml
+│   │   └── test
 │   └── pom.xml
 │
 ├── scripts
@@ -440,18 +432,16 @@ nexapay-event-driven-payments
 
 ---
 
-# Como Executar
+# Como executar
 
 ## Pré-requisitos
-
-Instale:
 
 - Java 21
 - Maven
 - Docker Desktop
 - Git
 
-Confira:
+Verifique:
 
 ```powershell
 java -version
@@ -461,221 +451,108 @@ docker compose version
 git --version
 ```
 
----
-
-## 1. Clonar o projeto
+## 1. Clonar
 
 ```powershell
 git clone https://github.com/juceliocoelho2022/nexapay-event-driven-payments.git
-```
-
-Entre na pasta:
-
-```powershell
 cd nexapay-event-driven-payments
 ```
 
----
-
-## 2. Subir PostgreSQL e Kafka
+## 2. Subir infraestrutura
 
 ```powershell
 docker compose up -d
 ```
 
-Confira:
-
-```powershell
-docker compose ps
-```
-
-Containers esperados:
+Serviços de infraestrutura esperados:
 
 ```text
-nexapay-postgres
-nexapay-kafka
+Kafka                 localhost:9092
+Payment PostgreSQL    localhost:5435
+Account PostgreSQL    localhost:5436
+Ledger PostgreSQL     localhost:5437
+Fraud PostgreSQL      localhost:5438
 ```
 
-Portas:
+## 3. Executar as aplicações
 
-```text
-PostgreSQL
-
-Windows:
-localhost:5435
-
-Container:
-5432
-
-
-Kafka:
-
-localhost:9092
-```
-
----
-
-## 3. Executar Payment Service
+Abra terminais separados:
 
 ```powershell
 mvn -pl payment-service spring-boot:run
 ```
 
-API:
+```powershell
+mvn -pl account-service spring-boot:run
+```
+
+```powershell
+mvn -pl ledger-service spring-boot:run
+```
+
+```powershell
+mvn -pl fraud-service spring-boot:run
+```
+
+Aplicações:
 
 ```text
-http://localhost:8081
+Payment Service   http://localhost:8081
+Account Service   http://localhost:8082
+Ledger Service    http://localhost:8083
+Fraud Service     http://localhost:8084
 ```
 
 ---
 
-# Health Check
-
-No navegador:
-
-```text
-http://localhost:8081/actuator/health
-```
-
-Ou PowerShell:
+# Health checks
 
 ```powershell
-Invoke-RestMethod http://localhost:8081/actuator/health
+curl.exe http://localhost:8081/actuator/health
+curl.exe http://localhost:8082/actuator/health
+curl.exe http://localhost:8083/actuator/health
+curl.exe http://localhost:8084/actuator/health
 ```
 
 Resultado esperado:
 
 ```json
-{
-  "status": "UP"
-}
-```
-
----
-
-# Testar Pagamento PIX
-
-O projeto possui um script PowerShell para realizar um pagamento.
-
-Execute:
-
-```powershell
-.\scripts\test-payment.ps1
-```
-
-Resultado esperado:
-
-```text
-id             : UUID
-payerAccountId : ACC-1001
-pixKey         : cliente@email.com
-amount         : 250,00
-description    : Pagamento de teste NexaPay
-status         : PENDING
-createdAt      : data-hora
-```
-
----
-
-# Validar PostgreSQL
-
-Entre no PostgreSQL:
-
-```powershell
-docker exec -it nexapay-postgres psql -U nexapay -d nexapay_payments
-```
-
-Consultar pagamentos:
-
-```sql
-SELECT
-    id,
-    idempotency_key,
-    payer_account_id,
-    pix_key,
-    amount,
-    status,
-    created_at
-FROM public.payments;
-```
-
-Consultar Outbox:
-
-```sql
-SELECT
-    id,
-    aggregate_id,
-    event_type,
-    published,
-    created_at,
-    published_at
-FROM public.outbox_events;
-```
-
-Para sair:
-
-```sql
-\q
-```
-
----
-
-# Validar Kafka
-
-Listar tópicos:
-
-```powershell
-docker exec nexapay-kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
-```
-
-Resultado esperado:
-
-```text
-nexapay.payment.created.v1
-```
-
-Consumir mensagens:
-
-```powershell
-docker exec -it nexapay-kafka /opt/kafka/bin/kafka-console-consumer.sh `
-  --bootstrap-server localhost:9092 `
-  --topic nexapay.payment.created.v1 `
-  --from-beginning `
-  --property print.key=true
-```
-
-Para encerrar:
-
-```text
-Ctrl + C
+{"status":"UP"}
 ```
 
 ---
 
 # Testes
 
-Executar:
+Executar todos os módulos:
 
 ```powershell
-mvn -pl payment-service test
+mvn clean test
 ```
 
-Testes existentes incluem:
+O reactor Maven atual inclui:
 
-- criação de pagamento;
-- idempotência;
-- persistência do Outbox Event;
-- comportamento do Payment Service.
+```text
+NexaPay
+NexaPay Payment Service
+NexaPay Account Service
+NexaPay Ledger Service
+NexaPay Fraud Service
+```
+
+A validação da Sprint 4 foi concluída com o reactor completo em `BUILD SUCCESS`. O Fraud Service possui cobertura de integração para regras de risco, replay do mesmo evento, consulta REST e resposta `404`.
+
+Para executar somente um módulo:
+
+```powershell
+mvn -pl fraud-service clean test
+```
 
 ---
 
-# Observabilidade
+# Observabilidade atual
 
-Atualmente o projeto utiliza:
-
-**Spring Boot Actuator**
-
-Endpoints:
+Todos os serviços expõem Spring Boot Actuator:
 
 ```text
 /actuator/health
@@ -683,26 +560,26 @@ Endpoints:
 /actuator/metrics
 ```
 
-Planejado:
+Planejado para Sprint futura:
 
 - Prometheus;
 - Grafana;
-- Loki.
+- Loki;
+- dashboards operacionais.
 
 ---
 
 # Segurança
 
-A autenticação ainda não faz parte da Sprint 1.
+Autenticação e autorização **ainda não estão implementadas**.
 
-Está planejada a utilização de:
+A próxima etapa planejada é a **Sprint 5 — Segurança**, incluindo evolução para:
 
+- Auth Service;
 - Spring Security;
 - JWT;
-- usuários;
 - roles;
-- permissions;
-- API Gateway.
+- permissions.
 
 ---
 
@@ -710,56 +587,52 @@ Está planejada a utilização de:
 
 ## Sprint 1 — Payment Service ✅
 
-- [x] Java 21
-- [x] Spring Boot
-- [x] REST API
-- [x] PostgreSQL
-- [x] Flyway
-- [x] Kafka
-- [x] Docker Compose
+- [x] REST API de pagamentos PIX
+- [x] PostgreSQL + Flyway
 - [x] Idempotency-Key
 - [x] Transactional Outbox
-- [x] JUnit
-- [x] Mockito
+- [x] publicação em Kafka
+- [x] testes automatizados
 - [x] Actuator
 
----
+## Sprint 2 — Account Service ✅
 
-## Sprint 2 — Account Service
+- [x] Account Service
+- [x] criação e consulta de contas
+- [x] saldo
+- [x] crédito
+- [x] débito
+- [x] pessimistic locking
+- [x] concorrência transacional
+- [x] Transactional Outbox
+- [x] eventos Kafka de crédito e débito
+- [x] testes de integração
 
-- [ ] Account Service
-- [ ] criação de contas
-- [ ] saldo
-- [ ] débito
-- [ ] crédito
-- [ ] pessimistic locking
-- [ ] concorrência transacional
-- [ ] eventos Kafka
+## Sprint 3 — Ledger Service ✅
 
----
+- [x] Ledger Service
+- [x] Kafka Consumer
+- [x] consumo de eventos de crédito e débito
+- [x] persistência de lançamentos
+- [x] proteção contra replay por evento
+- [x] histórico por conta
+- [x] API paginada de extrato
+- [x] testes de integração
 
-## Sprint 3 — Ledger Service
+## Sprint 4 — Fraud Service ✅
 
-- [ ] Ledger Service
-- [ ] dupla entrada
-- [ ] movimentações financeiras imutáveis
-- [ ] histórico de lançamentos
-- [ ] conciliação
+- [x] Fraud Service
+- [x] Kafka Consumer de `PaymentCreatedEvent`
+- [x] regras determinísticas de risco
+- [x] `APPROVED`, `REVIEW` e `BLOCKED`
+- [x] risk score
+- [x] persistência PostgreSQL/Flyway
+- [x] proteção contra replay por `eventId`
+- [x] API de consulta da decisão
+- [x] Testcontainers + MockMvc
+- [x] validação E2E Payment → Outbox → Kafka → Fraud
 
----
-
-## Sprint 4 — Fraud Service
-
-- [ ] Fraud Service
-- [ ] Kafka Consumer
-- [ ] regras antifraude
-- [ ] aprovação
-- [ ] rejeição
-- [ ] auditoria
-
----
-
-## Sprint 5 — Segurança
+## Sprint 5 — Segurança ⏳
 
 - [ ] Auth Service
 - [ ] Spring Security
@@ -767,16 +640,13 @@ Está planejada a utilização de:
 - [ ] Roles
 - [ ] Permissions
 
----
-
 ## Sprint 6 — Resiliência
 
 - [ ] Retry
 - [ ] Dead Letter Topic
-- [ ] reprocessamento
-- [ ] consumidores idempotentes
-
----
+- [ ] estratégia de reprocessamento
+- [ ] tratamento robusto de mensagens inválidas
+- [ ] fortalecimento da idempotência concorrente
 
 ## Sprint 7 — Observabilidade
 
@@ -786,8 +656,6 @@ Está planejada a utilização de:
 - [ ] métricas
 - [ ] dashboards
 
----
-
 ## Sprint 8 — API Gateway
 
 - [ ] Spring Cloud Gateway
@@ -795,218 +663,35 @@ Está planejada a utilização de:
 - [ ] autenticação centralizada
 - [ ] Rate Limiting
 
----
-
 ## Sprint 9 — Frontend
 
 - [ ] React
 - [ ] Dashboard
 - [ ] pagamentos
-- [ ] transações
-- [ ] monitoramento
-
----
+- [ ] contas
+- [ ] movimentações
+- [ ] decisões de fraude
 
 ## Sprint 10 — CI/CD e Cloud
 
 - [ ] GitHub Actions
-- [ ] CI/CD
-- [ ] testes automatizados
-- [ ] Docker Images
-- [ ] AWS
+- [ ] pipeline de build e testes
+- [ ] empacotamento/deploy
+- [ ] estratégia de cloud
 
 ---
 
-# Stack Futura
+## Limitações atuais conhecidas
 
-A arquitetura-alvo poderá utilizar:
-
-```text
-Java 21
-Spring Boot
-Spring Security
-Spring Cloud Gateway
-JWT
-
-PostgreSQL
-Redis
-MongoDB
-
-Apache Kafka
-
-Docker
-Docker Compose
-
-Prometheus
-Grafana
-Loki
-
-GitHub Actions
-AWS
-
-React
-```
+- a decisão de fraude ainda não altera o status do pagamento;
+- não há autenticação/autorização;
+- não há API Gateway;
+- retry/DLT ainda não foram implementados;
+- a entrega Kafka é at-least-once e requer consumidores idempotentes;
+- observabilidade avançada e CI/CD ainda fazem parte do roadmap.
 
 ---
 
-# Decisões Arquiteturais
+## Autor
 
-## Por que BigDecimal?
-
-Valores monetários não devem utilizar:
-
-```java
-double
-```
-
-O NexaPay utiliza:
-
-```java
-BigDecimal
-```
-
-para evitar problemas de precisão em operações financeiras.
-
----
-
-## Por que Idempotency-Key?
-
-Uma requisição de pagamento pode ser enviada mais de uma vez devido a:
-
-- timeout;
-- retry;
-- problemas de rede;
-- clique duplicado.
-
-O `Idempotency-Key` permite identificar que a operação já foi processada.
-
----
-
-## Por que Transactional Outbox?
-
-Sem Outbox poderia ocorrer:
-
-```text
-Banco salva pagamento
-        |
-        v
-Aplicação tenta publicar Kafka
-        |
-        X
-Kafka indisponível
-```
-
-Resultado:
-
-```text
-Pagamento existe
-
-mas
-
-evento não existe
-```
-
-Com Outbox:
-
-```text
-Pagamento
-+
-Evento
-
-persistidos na mesma transação
-```
-
-Isso melhora a consistência do sistema.
-
----
-
-## Por que Kafka?
-
-Kafka permite:
-
-- desacoplamento;
-- comunicação assíncrona;
-- processamento distribuído;
-- escalabilidade;
-- eventos;
-- integração entre microsserviços.
-
----
-
-## Por que Flyway?
-
-Flyway mantém as alterações do banco versionadas junto ao código.
-
-Exemplo:
-
-```text
-V1__create_payment_and_outbox.sql
-V2__...
-V3__...
-```
-
----
-
-# Objetivos Técnicos
-
-O NexaPay foi criado para estudar e demonstrar:
-
-- Java Backend;
-- Spring Boot;
-- APIs REST;
-- PostgreSQL;
-- mensageria;
-- Apache Kafka;
-- arquitetura orientada a eventos;
-- Transactional Outbox;
-- idempotência;
-- microsserviços;
-- concorrência;
-- consistência;
-- resiliência;
-- testes;
-- observabilidade;
-- segurança;
-- Docker;
-- CI/CD;
-- cloud.
-
----
-
-# Autor
-
-**Jucelio Farias Coelho**
-
-Desenvolvedor Java Backend
-
-Stack principal:
-
-```text
-Java
-Spring Boot
-Apache Kafka
-PostgreSQL
-Docker
-```
-
-GitHub:
-
-```text
-https://github.com/juceliocoelho2022
-```
-
-Projeto:
-
-```text
-https://github.com/juceliocoelho2022/nexapay-event-driven-payments
-```
-
----
-
-<p align="center">
-  <strong>NexaPay — Event-Driven Payment Platform</strong>
-</p>
-
-<p align="center">
-  Java 21 • Spring Boot • Apache Kafka • PostgreSQL • Docker
-</p>
+Projeto desenvolvido por **Jucelio Farias Coelho** como projeto de estudo e portfólio de engenharia de software backend Java.
