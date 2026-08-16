@@ -32,3 +32,9 @@ management:
     web:
       exposure:
         include: health,info,metrics
+
+nexapay:
+  security:
+    jwt:
+      issuer: https://nexapay.local/auth
+      secret: ${NEXAPAY_JWT_SECRET:nexapay-local-dev-secret-2026-change-me}
