@@ -26,10 +26,8 @@ public class AccountEventConsumer {
             topics = "nexapay.account.credited.v1",
             groupId = "nexapay-ledger-service"
     )
-    public void consumeCredit(String payload) throws JsonProcessingException {
-        AccountCreditedEvent event =
-                objectMapper.readValue(payload, AccountCreditedEvent.class);
-
+    public void consumeCredit(String payload) {
+        AccountCreditedEvent event = readCredit(payload);
         ledgerService.recordCredit(event);
     }
 
@@ -37,10 +35,30 @@ public class AccountEventConsumer {
             topics = "nexapay.account.debited.v1",
             groupId = "nexapay-ledger-service"
     )
-    public void consumeDebit(String payload) throws JsonProcessingException {
-        AccountDebitedEvent event =
-                objectMapper.readValue(payload, AccountDebitedEvent.class);
-
+    public void consumeDebit(String payload) {
+        AccountDebitedEvent event = readDebit(payload);
         ledgerService.recordDebit(event);
+    }
+
+    private AccountCreditedEvent readCredit(String payload) {
+        try {
+            return objectMapper.readValue(payload, AccountCreditedEvent.class);
+        } catch (JsonProcessingException exception) {
+            throw new InvalidLedgerEventPayloadException(
+                    "Invalid payload for nexapay.account.credited.v1",
+                    exception
+            );
+        }
+    }
+
+    private AccountDebitedEvent readDebit(String payload) {
+        try {
+            return objectMapper.readValue(payload, AccountDebitedEvent.class);
+        } catch (JsonProcessingException exception) {
+            throw new InvalidLedgerEventPayloadException(
+                    "Invalid payload for nexapay.account.debited.v1",
+                    exception
+            );
+        }
     }
 }

@@ -18,7 +18,7 @@
   <img src="https://img.shields.io/badge/PostgreSQL-17-blue" alt="PostgreSQL 17"/>
   <img src="https://img.shields.io/badge/Apache%20Kafka-3.9.x-black" alt="Apache Kafka"/>
   <img src="https://img.shields.io/badge/Security-JWT-blueviolet" alt="JWT Security"/>
-  <img src="https://img.shields.io/badge/Sprints-5%20conclu%C3%ADdas-success" alt="5 Sprints concluídas"/>
+  <img src="https://img.shields.io/badge/Sprints-6%20conclu%C3%ADdas-success" alt="6 Sprints concluídas"/>
 </p>
 
 ---
@@ -27,7 +27,7 @@
 
 O **NexaPay** é um projeto de portfólio de engenharia de software backend Java voltado a sistemas financeiros distribuídos e orientados a eventos.
 
-A evolução acontece por Sprints. A implementação atual possui cinco microsserviços Maven independentes:
+A implementação atual possui cinco microsserviços Maven independentes:
 
 - `payment-service` — criação e consulta de pagamentos PIX;
 - `account-service` — contas, saldo, crédito e débito;
@@ -43,7 +43,8 @@ Sprint 2 — Account Service   ✅ Concluída
 Sprint 3 — Ledger Service    ✅ Concluída
 Sprint 4 — Fraud Service     ✅ Concluída
 Sprint 5 — Segurança         ✅ Concluída
-Sprint 6 — Resiliência       ⏳ Próxima
+Sprint 6 — Resiliência       ✅ Concluída
+Sprint 7 — Observabilidade   ⏳ Próxima
 ```
 
 ---
@@ -54,14 +55,12 @@ Sprint 6 — Resiliência       ⏳ Próxima
                               ┌────────────────────┐
                               │      Cliente       │
                               └─────────┬──────────┘
-                                        │
                                         │ login / JWT
                                         v
                               ┌────────────────────┐
                               │    Auth Service    │
                               │       :8085        │
                               └─────────┬──────────┘
-                                        │
                                         │ Bearer JWT
                     ┌───────────────────┼───────────────────┐
                     │                   │                   │
@@ -79,10 +78,12 @@ Sprint 6 — Resiliência       ⏳ Próxima
                   │          │                 │          │
                   │          v                 v          │
                   │   account.credited  account.debited ─┘
-                  │
+                  │          │                 │
+                  │          └──── retry / DLT ┘
                   v
           payment.created
                   │
+                  │ retry / DLT
                   v
           ┌────────────────┐
           │  Fraud :8084   │
@@ -93,13 +94,15 @@ Sprint 6 — Resiliência       ⏳ Próxima
           Auth PostgreSQL :5439
 ```
 
-> O arquivo `docs/images/nexapay-architecture.png` representa a evolução visual do projeto. O diagrama textual acima descreve a arquitetura efetivamente implementada até a Sprint 5.
+> O arquivo `docs/images/nexapay-architecture.png` representa a evolução visual do projeto. O diagrama textual acima descreve a arquitetura implementada até a Sprint 6.
 
 ### Semântica de eventos
 
 Os produtores usam **Transactional Outbox** para persistir alteração de domínio e registro de evento na mesma transação local.
 
-A publicação no Kafka possui semântica **at-least-once**. O envio ao Kafka e a marcação do Outbox como publicado não formam uma única transação distribuída; portanto, consumidores devem tolerar reprocessamento e duplicidade.
+A publicação e o consumo Kafka possuem semântica **at-least-once**. O envio ao Kafka e a marcação do Outbox como publicado não formam uma única transação distribuída, e a recuperação via DLT também não é uma transação global com o commit do offset.
+
+Por isso, a arquitetura assume que consumidores devem ser idempotentes e tolerar reprocessamento. O projeto **não reivindica exactly-once**.
 
 ---
 
@@ -122,6 +125,8 @@ A publicação no Kafka possui semântica **at-least-once**. O envio ao Kafka e 
 - Flyway
 - Apache Kafka 3.9.x
 - Transactional Outbox
+- Retry com Spring Kafka
+- Dead Letter Topics
 - bancos dedicados por serviço
 
 ### Testes
@@ -132,6 +137,8 @@ A publicação no Kafka possui semântica **at-least-once**. O envio ao Kafka e 
 - Spring Security Test
 - MockMvc
 - Testcontainers
+- testes de concorrência com PostgreSQL real
+- testes E2E de retry, DLT e replay controlado
 
 ### Infraestrutura
 
@@ -143,7 +150,7 @@ A publicação no Kafka possui semântica **at-least-once**. O envio ao Kafka e 
 
 # Serviços
 
-## Payment Service — Sprint 1 ✅
+## Payment Service — Sprint 1 + hardening Sprint 6 ✅
 
 **Aplicação:** `8081`  
 **PostgreSQL:** `5435`  
@@ -156,13 +163,13 @@ GET  /api/v1/payments/{id}
 
 A criação exige `Idempotency-Key` e autorização `PAYMENT_CREATE`. A consulta exige `PAYMENT_READ`.
 
-O serviço grava pagamento + Outbox Event na mesma transação e publica:
+O serviço grava pagamento + Outbox Event na mesma operação de negócio e publica:
 
 ```text
 nexapay.payment.created.v1
 ```
 
-> A idempotência atual usa consulta seguida de inserção. A constraint do banco preserva unicidade, mas chamadas concorrentes com a mesma chave ainda podem disputar a inserção.
+Na Sprint 6, a idempotência foi fortalecida para concorrência. A criação usa reserva atômica no PostgreSQL com `INSERT ... ON CONFLICT DO NOTHING`, apoiada pela constraint única de `idempotency_key`. Chamadas simultâneas com a mesma chave convergem para um único pagamento persistido, comportamento coberto por teste concorrente com Testcontainers.
 
 ---
 
@@ -198,7 +205,7 @@ Recursos principais:
 
 ---
 
-## Ledger Service — Sprint 3 ✅
+## Ledger Service — Sprint 3 + hardening Sprint 6 ✅
 
 **Aplicação:** `8083`  
 **PostgreSQL:** `5437`  
@@ -212,19 +219,35 @@ nexapay.account.credited.v1
 nexapay.account.debited.v1
 ```
 
+DLTs:
+
+```text
+nexapay.account.credited.v1.DLT
+nexapay.account.debited.v1.DLT
+```
+
 Endpoint protegido:
 
 ```http
 GET /api/v1/ledger/accounts/{accountId}   -> LEDGER_READ
 ```
 
-Possui histórico paginado por conta e proteção contra replay sequencial por `eventId`.
+Recursos de resiliência:
 
-> Não é um ledger contábil double-entry; atualmente registra lançamentos derivados dos eventos do Account Service.
+- `DefaultErrorHandler`;
+- `FixedBackOff` de 1 segundo;
+- política configurada com 2 retries após a tentativa inicial;
+- `DeadLetterPublishingRecoverer`;
+- DLT por tópico original, preservando a partição;
+- payload JSON inválido tratado como não-retryable e encaminhado diretamente para recuperação/DLT;
+- proteção contra replay concorrente por `eventId` com operação atômica no PostgreSQL;
+- validação E2E com indisponibilidade real do PostgreSQL.
+
+> Não é um ledger contábil double-entry; registra lançamentos derivados dos eventos do Account Service.
 
 ---
 
-## Fraud Service — Sprint 4 ✅
+## Fraud Service — Sprint 4 + hardening Sprint 6 ✅
 
 **Aplicação:** `8084`  
 **PostgreSQL:** `5438`  
@@ -235,6 +258,12 @@ Consome:
 
 ```text
 nexapay.payment.created.v1
+```
+
+DLT:
+
+```text
+nexapay.payment.created.v1.DLT
 ```
 
 Motor de regras atual:
@@ -250,6 +279,15 @@ Endpoint protegido:
 ```http
 GET /api/v1/fraud/payments/{paymentId}   -> FRAUD_READ
 ```
+
+Recursos de resiliência:
+
+- mesma política de retry/DLT do Ledger;
+- payload inválido classificado como não-retryable;
+- replay concorrente protegido por `eventId` no PostgreSQL;
+- teste concorrente de idempotência;
+- teste E2E de falha do PostgreSQL seguido de DLT;
+- replay controlado após recuperação do banco.
 
 `ROLE_USER` não recebe `FRAUD_READ`; a permissão fica reservada ao `ROLE_ADMIN` no modelo atual.
 
@@ -295,9 +333,60 @@ GET /api/v1/auth/me   -> AUTH_SELF_READ
 
 A Sprint 5 usa **HS256 com segredo compartilhado** entre Auth e Resource Servers.
 
-Isso simplifica o ambiente local e permite validar autenticação/autorização ponta a ponta, mas não é o modelo ideal para produção: um serviço que possui o segredo de verificação também possui material suficiente para assinar tokens.
+Isso simplifica o ambiente local, mas não é o modelo ideal para produção: um serviço com o segredo de verificação também possui material suficiente para assinar tokens.
 
-Uma evolução recomendada é migrar para assinatura assimétrica, mantendo a chave privada apenas no Auth Service e distribuindo somente a chave pública/JWK aos Resource Servers.
+Uma evolução recomendada é assinatura assimétrica, mantendo a chave privada somente no Auth Service e distribuindo somente chave pública/JWK aos Resource Servers.
+
+---
+
+# Sprint 6 — Resiliência
+
+A Sprint 6 adiciona recuperação explícita para consumidores Kafka e fortalece idempotência sob concorrência.
+
+### Política Kafka
+
+```text
+Tentativa inicial
+      ↓ falha retriable
+Retry 1 — backoff 1s
+      ↓ falha
+Retry 2 — backoff 1s
+      ↓ falha
+Dead Letter Topic
+```
+
+`max-retries=2` representa duas novas entregas após a tentativa inicial. Payloads classificados como inválidos não entram nessa sequência de retries.
+
+### DLT como quarentena
+
+A DLT é tratada como registro terminal de quarentena. Não existe consumer automático que republique indefinidamente mensagens problemáticas.
+
+O utilitário:
+
+```text
+scripts/replay-dlt.ps1
+```
+
+seleciona explicitamente uma mensagem por marcador único. O comportamento padrão é **dry-run**; a republicação exige `-Replay`.
+
+Exemplo de inspeção:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\replay-dlt.ps1 `
+  -Route fraud-payment `
+  -Marker "ACC-S6-FRAUD-EXEMPLO"
+```
+
+Replay explícito após corrigir a causa da falha:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\replay-dlt.ps1 `
+  -Route fraud-payment `
+  -Marker "ACC-S6-FRAUD-EXEMPLO" `
+  -Replay
+```
+
+O registro original permanece na DLT como evidência de quarentena/auditoria; o replay publica uma nova cópia no tópico original, e a idempotência do consumidor define o efeito sobre o estado.
 
 ---
 
@@ -331,7 +420,7 @@ LEDGER_READ
 
 Recebe todas as permissões atuais, incluindo `FRAUD_READ`.
 
-> A autorização atual é por endpoint/permission. Ainda não existe object-level authorization que garanta, por exemplo, que um usuário só consulte a própria conta ou os próprios pagamentos.
+> A autorização atual é por endpoint/permission. Ainda não existe object-level authorization que garanta, por exemplo, que um usuário consulte somente a própria conta ou os próprios pagamentos.
 
 ---
 
@@ -387,16 +476,6 @@ Fraud Service     http://localhost:8084
 Auth Service      http://localhost:8085
 ```
 
-## Health checks
-
-```powershell
-curl.exe http://localhost:8081/actuator/health
-curl.exe http://localhost:8082/actuator/health
-curl.exe http://localhost:8083/actuator/health
-curl.exe http://localhost:8084/actuator/health
-curl.exe http://localhost:8085/actuator/health
-```
-
 ---
 
 # Testes
@@ -407,28 +486,26 @@ Reactor completo:
 mvn clean test
 ```
 
-Validação final da Sprint 5:
+Validação automatizada da Sprint 6:
 
-```text
-NexaPay                     SUCCESS
-NexaPay Payment Service     SUCCESS
-NexaPay Account Service     SUCCESS
-NexaPay Ledger Service      SUCCESS
-NexaPay Fraud Service       SUCCESS
-NexaPay Auth Service        SUCCESS
-BUILD SUCCESS
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\test-sprint6-resilience.ps1
 ```
 
-A validação E2E da Sprint 5 confirmou:
+Resultado final validado:
 
-- registro/login no Auth Service;
-- emissão e validação de JWT;
-- `401` para acesso anônimo;
-- `403` para token autenticado sem permission suficiente;
-- Payment protegido por `PAYMENT_CREATE` / `PAYMENT_READ`;
-- Account protegido por `ACCOUNT_WRITE` / `ACCOUNT_READ`;
-- Ledger protegido por `LEDGER_READ`;
-- Fraud protegido por `FRAUD_READ`.
+```text
+NEXAPAY SPRINT 6 VALIDATION
+========================================
+Full Maven reactor                         PASS
+Ledger malformed payload -> DLT            PASS
+Ledger DB failure -> retry/DLT             PASS
+Fraud malformed payload -> DLT             PASS
+Fraud DB failure -> retry/DLT               PASS
+Controlled DLT replay                      PASS
+```
+
+A validação também cobre idempotência concorrente com PostgreSQL real via Testcontainers para Payment, Ledger e Fraud.
 
 ---
 
@@ -483,13 +560,15 @@ A validação E2E da Sprint 5 confirmou:
 - [x] testes de autorização
 - [x] E2E autenticado
 
-## Sprint 6 — Resiliência ⏳
+## Sprint 6 — Resiliência ✅
 
-- [ ] Retry
-- [ ] Dead Letter Topic
-- [ ] estratégia de reprocessamento
-- [ ] tratamento de mensagens inválidas
-- [ ] fortalecimento da idempotência concorrente
+- [x] Retry
+- [x] Dead Letter Topic
+- [x] estratégia de reprocessamento controlado
+- [x] tratamento de mensagens inválidas
+- [x] fortalecimento da idempotência concorrente
+- [x] testes E2E de falha de banco
+- [x] replay DLT após recuperação
 
 ## Sprint 7 — Observabilidade
 
@@ -525,16 +604,17 @@ A validação E2E da Sprint 5 confirmou:
 
 ## Limitações conhecidas
 
-- JWT usa HS256 compartilhado no ambiente atual;
+- JWT usa HS256 com segredo compartilhado no ambiente atual;
 - não há refresh token, revogação, password reset ou MFA;
 - não há object-level authorization/ownership de conta ou pagamento;
 - a decisão do Fraud Service não atualiza automaticamente o Payment Service;
-- Payment idempotency ainda possui janela de corrida concorrente entre consulta e inserção;
-- replay protection de consumidores protege o fluxo sequencial, mas duplicidades realmente concorrentes ainda podem disputar constraints do banco;
-- Kafka opera com entrega at-least-once;
-- retry e DLT ainda não foram implementados;
+- Kafka e Outbox operam com semântica at-least-once; não há garantia exactly-once global;
+- DLT e offset commit não participam de uma única transação distribuída;
+- o replay da DLT é operacional e controlado, não automático;
+- o Ledger não é double-entry;
+- tópicos/DLT devem ser provisionados em produção com contagem de partições compatível quando for preservada a partição original;
 - não há API Gateway;
-- observabilidade avançada e CI/CD ainda fazem parte do roadmap.
+- observabilidade avançada e CI/CD permanecem no roadmap.
 
 ---
 

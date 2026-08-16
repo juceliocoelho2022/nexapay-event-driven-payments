@@ -30,8 +30,13 @@ public class PaymentCreatedConsumer {
             topics = PAYMENT_CREATED_TOPIC,
             groupId = "nexapay-fraud-service"
     )
-    public void consume(String payload) throws JsonProcessingException {
-        PaymentCreatedEvent event = objectMapper.readValue(payload, PaymentCreatedEvent.class);
+    public void consume(String payload) {
+        PaymentCreatedEvent event;
+        try {
+            event = objectMapper.readValue(payload, PaymentCreatedEvent.class);
+        } catch (JsonProcessingException exception) {
+            throw new InvalidFraudEventPayloadException(PAYMENT_CREATED_TOPIC, exception);
+        }
 
         log.info(
                 "Received payment event for fraud analysis. eventId={}, paymentId={}",
