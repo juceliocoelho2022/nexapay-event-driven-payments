@@ -33,16 +33,31 @@ Write-Host "DLT topic:      $dltTopic"
 Write-Host "Original topic: $originalTopic"
 Write-Host "Marker:         $Marker"
 
-$output = & docker exec nexapay-kafka `
-    /opt/kafka/bin/kafka-console-consumer.sh `
-    --bootstrap-server localhost:9092 `
-    --topic $dltTopic `
-    --from-beginning `
-    --timeout-ms $ReadTimeoutMs 2>$null
+# kafka-console-consumer exits non-zero when its read timeout is reached and may
+# write a timeout diagnostic to stderr. On Windows PowerShell, with
+# ErrorActionPreference=Stop, that normal timeout can otherwise be promoted to a
+# terminating NativeCommandError before we can inspect the records it returned.
+$previousPreference = $ErrorActionPreference
+try {
+    $ErrorActionPreference = "SilentlyContinue"
+    $output = & docker exec nexapay-kafka `
+        /opt/kafka/bin/kafka-console-consumer.sh `
+        --bootstrap-server localhost:9092 `
+        --topic $dltTopic `
+        --from-beginning `
+        --timeout-ms $ReadTimeoutMs 2>$null
+    $consumerExitCode = $LASTEXITCODE
+}
+finally {
+    $ErrorActionPreference = $previousPreference
+}
 
 $matches = @($output | Where-Object { $_ -like "*$Marker*" })
 
 if ($matches.Count -eq 0) {
+    if ($consumerExitCode -ne 0 -and $consumerExitCode -ne 1) {
+        throw "Kafka consumer failed while reading $dltTopic (exit code $consumerExitCode)."
+    }
     throw "No DLT record matched marker '$Marker' in $dltTopic."
 }
 
@@ -61,13 +76,21 @@ if (-not $Replay) {
     exit 0
 }
 
-$payload | & docker exec -i nexapay-kafka `
-    /opt/kafka/bin/kafka-console-producer.sh `
-    --bootstrap-server localhost:9092 `
-    --topic $originalTopic
+$previousPreference = $ErrorActionPreference
+try {
+    $ErrorActionPreference = "SilentlyContinue"
+    $payload | & docker exec -i nexapay-kafka `
+        /opt/kafka/bin/kafka-console-producer.sh `
+        --bootstrap-server localhost:9092 `
+        --topic $originalTopic
+    $producerExitCode = $LASTEXITCODE
+}
+finally {
+    $ErrorActionPreference = $previousPreference
+}
 
-if ($LASTEXITCODE -ne 0) {
-    throw "Kafka producer failed while replaying the selected DLT record."
+if ($producerExitCode -ne 0) {
+    throw "Kafka producer failed while replaying the selected DLT record (exit code $producerExitCode)."
 }
 
 Write-Host "`nReplay published successfully to $originalTopic."
