@@ -22,6 +22,13 @@
         <java.version>21</java.version>
     </properties>
 
+    <dependencies>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+    </dependencies>
+
     <modules>
         <module>payment-service</module>
         <module>account-service</module>
