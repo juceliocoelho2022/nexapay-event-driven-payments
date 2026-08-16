@@ -83,7 +83,7 @@ class AuthenticationIntegrationTest {
         JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
         Jwt jwt = jwtDecoder.decode(body.get("accessToken").asText());
 
-        assertThat(jwt.getIssuer().toString()).isEqualTo("nexapay-auth-service");
+        assertThat(jwt.getIssuer().toString()).isEqualTo("https://nexapay.local/auth");
         assertThat(jwt.getClaimAsString("email")).isEqualTo("jwt-user@nexapay.com");
         assertThat(jwt.getClaimAsStringList("roles")).containsExactly("ROLE_USER");
         assertThat(jwt.getExpiresAt()).isAfter(jwt.getIssuedAt());
