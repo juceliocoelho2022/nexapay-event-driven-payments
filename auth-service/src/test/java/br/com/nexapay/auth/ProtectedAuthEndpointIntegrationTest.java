@@ -17,6 +17,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -62,7 +63,7 @@ class ProtectedAuthEndpointIntegrationTest {
     }
 
     @Test
-    void shouldAuthorizeRoleUserFromJwt() throws Exception {
+    void shouldAuthorizeUserByJwtPermission() throws Exception {
         String email = "protected-user@nexapay.com";
         String password = "NexaPay@2026";
 
@@ -74,7 +75,8 @@ class ProtectedAuthEndpointIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.userId").isNotEmpty())
                 .andExpect(jsonPath("$.email").value(email))
-                .andExpect(jsonPath("$.roles[0]").value("ROLE_USER"));
+                .andExpect(jsonPath("$.roles[0]").value("ROLE_USER"))
+                .andExpect(jsonPath("$.permissions", hasItem("AUTH_SELF_READ")));
     }
 
     private void register(String email, String password) throws Exception {
