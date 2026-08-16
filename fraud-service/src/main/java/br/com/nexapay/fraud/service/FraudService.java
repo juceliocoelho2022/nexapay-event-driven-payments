@@ -50,16 +50,37 @@ public class FraudService {
                 event.occurredAt()
         );
 
-        FraudDecision saved = repository.save(decision);
+        int inserted = repository.insertIfEventAbsent(
+                decision.getId(),
+                decision.getEventId(),
+                decision.getPaymentId(),
+                decision.getPayerAccountId(),
+                decision.getPixKey(),
+                decision.getAmount(),
+                decision.getDecision().name(),
+                decision.getRiskScore(),
+                decision.getReason(),
+                decision.getOccurredAt(),
+                decision.getAnalyzedAt()
+        );
+
+        if (inserted == 0) {
+            FraudDecision winner = repository.findByEventId(event.eventId())
+                    .orElseThrow(() -> new IllegalStateException(
+                            "Fraud event was claimed but decision could not be loaded: " + event.eventId()
+                    ));
+            log.info("Ignoring duplicated fraud event after concurrent insert. eventId={}", event.eventId());
+            return winner;
+        }
 
         log.info(
                 "Fraud analysis completed. paymentId={}, decision={}, riskScore={}",
-                saved.getPaymentId(),
-                saved.getDecision(),
-                saved.getRiskScore()
+                decision.getPaymentId(),
+                decision.getDecision(),
+                decision.getRiskScore()
         );
 
-        return saved;
+        return decision;
     }
 
     @Transactional(readOnly = true)
