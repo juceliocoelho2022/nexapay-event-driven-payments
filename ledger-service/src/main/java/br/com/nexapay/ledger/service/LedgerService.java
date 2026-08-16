@@ -1,5 +1,6 @@
 package br.com.nexapay.ledger.service;
 
+import br.com.nexapay.ledger.api.LedgerEntryResponse;
 import br.com.nexapay.ledger.domain.LedgerEntry;
 import br.com.nexapay.ledger.domain.LedgerEntryType;
 import br.com.nexapay.ledger.event.AccountCreditedEvent;
@@ -7,13 +8,13 @@ import br.com.nexapay.ledger.event.AccountDebitedEvent;
 import br.com.nexapay.ledger.repository.LedgerEntryRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import br.com.nexapay.ledger.api.LedgerEntryResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
+
 @Service
 public class LedgerService {
 
@@ -27,12 +28,7 @@ public class LedgerService {
 
     @Transactional
     public void recordCredit(AccountCreditedEvent event) {
-        if (repository.existsByEventId(event.eventId())) {
-            log.info("Ignoring duplicated ledger event. eventId={}", event.eventId());
-            return;
-        }
-
-        LedgerEntry entry = LedgerEntry.create(
+        record(
                 event.eventId(),
                 event.accountId(),
                 event.accountNumber(),
@@ -41,25 +37,11 @@ public class LedgerService {
                 event.balanceAfter(),
                 event.occurredAt()
         );
-
-        repository.save(entry);
-
-        log.info(
-                "Ledger credit recorded. eventId={}, accountId={}, amount={}",
-                event.eventId(),
-                event.accountId(),
-                event.amount()
-        );
     }
 
     @Transactional
     public void recordDebit(AccountDebitedEvent event) {
-        if (repository.existsByEventId(event.eventId())) {
-            log.info("Ignoring duplicated ledger event. eventId={}", event.eventId());
-            return;
-        }
-
-        LedgerEntry entry = LedgerEntry.create(
+        record(
                 event.eventId(),
                 event.accountId(),
                 event.accountNumber(),
@@ -68,16 +50,53 @@ public class LedgerService {
                 event.balanceAfter(),
                 event.occurredAt()
         );
+    }
 
-        repository.save(entry);
+    private void record(
+            UUID eventId,
+            UUID accountId,
+            String accountNumber,
+            LedgerEntryType entryType,
+            java.math.BigDecimal amount,
+            java.math.BigDecimal balanceAfter,
+            java.time.OffsetDateTime occurredAt
+    ) {
+        LedgerEntry entry = LedgerEntry.create(
+                eventId,
+                accountId,
+                accountNumber,
+                entryType,
+                amount,
+                balanceAfter,
+                occurredAt
+        );
+
+        int inserted = repository.insertIfEventAbsent(
+                entry.getId(),
+                entry.getEventId(),
+                entry.getAccountId(),
+                entry.getAccountNumber(),
+                entry.getEntryType().name(),
+                entry.getAmount(),
+                entry.getBalanceAfter(),
+                entry.getOccurredAt(),
+                entry.getRecordedAt()
+        );
+
+        if (inserted == 0) {
+            log.info("Ignoring duplicated ledger event. eventId={}", eventId);
+            return;
+        }
 
         log.info(
-                "Ledger debit recorded. eventId={}, accountId={}, amount={}",
-                event.eventId(),
-                event.accountId(),
-                event.amount()
+                "Ledger {} recorded. eventId={}, accountId={}, amount={}",
+                entryType.name().toLowerCase(),
+                eventId,
+                accountId,
+                amount
         );
     }
+
     @Transactional(readOnly = true)
     public Page<LedgerEntryResponse> getEntriesByAccountId(
             UUID accountId,
