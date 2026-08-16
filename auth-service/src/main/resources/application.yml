@@ -27,6 +27,6 @@ management:
 nexapay:
   security:
     jwt:
-      issuer: nexapay-auth-service
+      issuer: https://nexapay.local/auth
       secret: ${NEXAPAY_JWT_SECRET:nexapay-local-dev-secret-2026-change-me}
       ttl-seconds: 3600
