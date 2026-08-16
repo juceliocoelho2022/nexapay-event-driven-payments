@@ -4,6 +4,7 @@ import br.com.nexapay.account.service.AccountService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,21 +25,25 @@ public class AccountController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('ACCOUNT_WRITE')")
     public ResponseEntity<AccountResponse> create(@Valid @RequestBody CreateAccountRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(accountService.create(request));
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('ACCOUNT_READ')")
     public AccountResponse getById(@PathVariable UUID id) {
         return accountService.getById(id);
     }
 
     @PostMapping("/{id}/credit")
+    @PreAuthorize("hasAuthority('ACCOUNT_WRITE')")
     public AccountResponse credit(@PathVariable UUID id, @Valid @RequestBody AmountRequest request) {
         return accountService.credit(id, request);
     }
 
     @PostMapping("/{id}/debit")
+    @PreAuthorize("hasAuthority('ACCOUNT_WRITE')")
     public AccountResponse debit(@PathVariable UUID id, @Valid @RequestBody AmountRequest request) {
         return accountService.debit(id, request);
     }
