@@ -7,8 +7,8 @@ spring:
 
   datasource:
     url: jdbc:postgresql://localhost:5435/nexapay_payments
-    username: postgres
-    password: 89327934
+    username: nexapay
+    password: nexapay
 
   jpa:
     open-in-view: false
