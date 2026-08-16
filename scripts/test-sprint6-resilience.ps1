@@ -33,9 +33,14 @@ function Test-HttpHealth {
 
     $watch = [Diagnostics.Stopwatch]::StartNew()
     while ($watch.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
-        & curl.exe -fsS $Url *> $null
-        if ($LASTEXITCODE -eq 0) {
-            return $true
+        try {
+            $response = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop
+            if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 300) {
+                return $true
+            }
+        }
+        catch {
+            # A connection refusal is expected while the service is still starting.
         }
         Start-Sleep -Seconds 2
     }
@@ -47,8 +52,17 @@ function Wait-KafkaReady {
 
     $watch = [Diagnostics.Stopwatch]::StartNew()
     while ($watch.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
-        & docker exec nexapay-kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list *> $null
-        if ($LASTEXITCODE -eq 0) {
+        $previousPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = "SilentlyContinue"
+            & docker exec nexapay-kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list *> $null
+            $exitCode = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $previousPreference
+        }
+
+        if ($exitCode -eq 0) {
             return
         }
         Start-Sleep -Seconds 2
@@ -65,8 +79,17 @@ function Wait-PostgresReady {
 
     $watch = [Diagnostics.Stopwatch]::StartNew()
     while ($watch.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
-        & docker exec $Container pg_isready -U nexapay -d $Database *> $null
-        if ($LASTEXITCODE -eq 0) {
+        $previousPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = "SilentlyContinue"
+            & docker exec $Container pg_isready -U nexapay -d $Database *> $null
+            $exitCode = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $previousPreference
+        }
+
+        if ($exitCode -eq 0) {
             return
         }
         Start-Sleep -Seconds 2
@@ -95,7 +118,15 @@ function Wait-TopicContains {
 
     $watch = [Diagnostics.Stopwatch]::StartNew()
     while ($watch.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
-        $output = & docker exec nexapay-kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic $Topic --from-beginning --timeout-ms 1000 2>$null
+        $previousPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = "SilentlyContinue"
+            $output = & docker exec nexapay-kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic $Topic --from-beginning --timeout-ms 1000 2>$null
+        }
+        finally {
+            $ErrorActionPreference = $previousPreference
+        }
+
         $text = ($output -join "`n")
         if ($text.Contains($Marker)) {
             return $true
@@ -176,7 +207,6 @@ Push-Location $repoRoot
 try {
     Require-Command "mvn"
     Require-Command "docker"
-    Require-Command "curl.exe"
 
     Invoke-Check "Full Maven reactor" {
         & mvn -B clean test
@@ -288,8 +318,15 @@ catch {
     Write-Host "`n[FATAL] $fatalError"
 }
 finally {
-    & docker start nexapay-ledger-postgres *> $null
-    & docker start nexapay-fraud-postgres *> $null
+    $previousPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "SilentlyContinue"
+        & docker start nexapay-ledger-postgres *> $null
+        & docker start nexapay-fraud-postgres *> $null
+    }
+    finally {
+        $ErrorActionPreference = $previousPreference
+    }
 
     foreach ($process in $ownedProcesses) {
         try {
