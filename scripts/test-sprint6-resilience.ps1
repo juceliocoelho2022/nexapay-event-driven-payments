@@ -9,6 +9,7 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $runId = [guid]::NewGuid().ToString("N").Substring(0, 10)
 $ownedProcesses = @()
 $fatalError = $null
+$fraudRetryMarker = $null
 
 $results = [ordered]@{
     "Full Maven reactor" = $null
@@ -16,6 +17,7 @@ $results = [ordered]@{
     "Ledger DB failure -> retry/DLT" = $null
     "Fraud malformed payload -> DLT" = $null
     "Fraud DB failure -> retry/DLT" = $null
+    "Controlled DLT replay" = $null
 }
 
 function Require-Command {
@@ -40,7 +42,7 @@ function Test-HttpHealth {
             }
         }
         catch {
-            # A connection refusal is expected while the service is still starting.
+            # Connection refusal is expected while the service is still starting.
         }
         Start-Sleep -Seconds 2
     }
@@ -62,9 +64,7 @@ function Wait-KafkaReady {
             $ErrorActionPreference = $previousPreference
         }
 
-        if ($exitCode -eq 0) {
-            return
-        }
+        if ($exitCode -eq 0) { return }
         Start-Sleep -Seconds 2
     }
     throw "Kafka did not become ready within $TimeoutSeconds seconds."
@@ -89,9 +89,7 @@ function Wait-PostgresReady {
             $ErrorActionPreference = $previousPreference
         }
 
-        if ($exitCode -eq 0) {
-            return
-        }
+        if ($exitCode -eq 0) { return }
         Start-Sleep -Seconds 2
     }
     throw "$Container did not become ready within $TimeoutSeconds seconds."
@@ -128,7 +126,34 @@ function Wait-TopicContains {
         }
 
         $text = ($output -join "`n")
-        if ($text.Contains($Marker)) {
+        if ($text.Contains($Marker)) { return $true }
+        Start-Sleep -Seconds 2
+    }
+    return $false
+}
+
+function Wait-FraudDecision {
+    param(
+        [string]$Marker,
+        [int]$TimeoutSeconds = 60
+    )
+
+    $watch = [Diagnostics.Stopwatch]::StartNew()
+    while ($watch.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
+        $previousPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = "SilentlyContinue"
+            $output = & docker exec nexapay-fraud-postgres psql `
+                -U nexapay `
+                -d nexapay_fraud `
+                -tAc "SELECT COUNT(*) FROM fraud_decisions WHERE payer_account_id = '$Marker';" 2>$null
+            $exitCode = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $previousPreference
+        }
+
+        if ($exitCode -eq 0 -and ([string]$output).Trim() -eq "1") {
             return $true
         }
         Start-Sleep -Seconds 2
@@ -207,6 +232,7 @@ Push-Location $repoRoot
 try {
     Require-Command "mvn"
     Require-Command "docker"
+    Require-Command "powershell.exe"
 
     Invoke-Check "Full Maven reactor" {
         & mvn -B clean test
@@ -284,6 +310,7 @@ try {
 
     Invoke-Check "Fraud DB failure -> retry/DLT" {
         $marker = "ACC-S6-FRAUD-$runId"
+        $script:fraudRetryMarker = $marker
         & docker stop nexapay-fraud-postgres | Out-Null
         if ($LASTEXITCODE -ne 0) { throw "Could not stop Fraud PostgreSQL." }
 
@@ -310,6 +337,27 @@ try {
         finally {
             & docker start nexapay-fraud-postgres | Out-Null
             Wait-PostgresReady -Container "nexapay-fraud-postgres" -Database "nexapay_fraud"
+        }
+    }
+
+    Invoke-Check "Controlled DLT replay" {
+        if ([string]::IsNullOrWhiteSpace($script:fraudRetryMarker)) {
+            throw "Fraud retry marker was not produced by the previous validation step."
+        }
+
+        $replayScript = Join-Path $repoRoot "scripts\replay-dlt.ps1"
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $replayScript `
+            -Route fraud-payment `
+            -Marker $script:fraudRetryMarker `
+            -Replay `
+            -ReadTimeoutMs 10000
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "Controlled DLT replay command failed with exit code $LASTEXITCODE."
+        }
+
+        if (-not (Wait-FraudDecision -Marker $script:fraudRetryMarker -TimeoutSeconds 60)) {
+            throw "Replayed Fraud event was not persisted after database recovery."
         }
     }
 }
