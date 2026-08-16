@@ -3,6 +3,7 @@ package br.com.nexapay.ledger;
 import br.com.nexapay.ledger.event.AccountCreditedEvent;
 import br.com.nexapay.ledger.repository.LedgerEntryRepository;
 import br.com.nexapay.ledger.service.LedgerService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -16,6 +17,11 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -48,24 +54,74 @@ class LedgerIdempotencyIntegrationTest {
     @Autowired
     private LedgerEntryRepository repository;
 
+    @BeforeEach
+    void cleanDatabase() {
+        repository.deleteAll();
+    }
+
     @Test
     void shouldIgnoreDuplicatedEvent() {
         UUID eventId = UUID.randomUUID();
-        UUID accountId = UUID.randomUUID();
-
-        AccountCreditedEvent event = new AccountCreditedEvent(
-                eventId,
-                accountId,
-                "ACC-TEST-01",
-                new BigDecimal("1000.00"),
-                new BigDecimal("1000.00"),
-                OffsetDateTime.now(ZoneOffset.UTC)
-        );
+        AccountCreditedEvent event = event(eventId, "ACC-TEST-01");
 
         ledgerService.recordCredit(event);
         ledgerService.recordCredit(event);
 
         assertThat(repository.count()).isEqualTo(1);
         assertThat(repository.existsByEventId(eventId)).isTrue();
+    }
+
+    @Test
+    void shouldIgnoreConcurrentDuplicatedEventWithoutThrowing() throws Exception {
+        UUID eventId = UUID.randomUUID();
+        AccountCreditedEvent event = event(eventId, "ACC-CONCURRENT-LEDGER");
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+
+        try {
+            Future<?> first = executor.submit(() -> invokeWhenReleased(event, ready, start));
+            Future<?> second = executor.submit(() -> invokeWhenReleased(event, ready, start));
+
+            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+
+            first.get(30, TimeUnit.SECONDS);
+            second.get(30, TimeUnit.SECONDS);
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(repository.count()).isEqualTo(1);
+        assertThat(repository.existsByEventId(eventId)).isTrue();
+    }
+
+    private void invokeWhenReleased(
+            AccountCreditedEvent event,
+            CountDownLatch ready,
+            CountDownLatch start
+    ) {
+        try {
+            ready.countDown();
+            if (!start.await(10, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("Concurrent ledger test start latch timed out");
+            }
+            ledgerService.recordCredit(event);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Concurrent ledger test interrupted", exception);
+        }
+    }
+
+    private AccountCreditedEvent event(UUID eventId, String accountNumber) {
+        return new AccountCreditedEvent(
+                eventId,
+                UUID.randomUUID(),
+                accountNumber,
+                new BigDecimal("1000.00"),
+                new BigDecimal("1000.00"),
+                OffsetDateTime.now(ZoneOffset.UTC)
+        );
     }
 }
