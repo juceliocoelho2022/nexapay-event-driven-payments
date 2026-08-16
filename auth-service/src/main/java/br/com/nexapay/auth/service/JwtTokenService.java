@@ -1,6 +1,7 @@
 package br.com.nexapay.auth.service;
 
 import br.com.nexapay.auth.api.LoginResponse;
+import br.com.nexapay.auth.domain.Permission;
 import br.com.nexapay.auth.domain.Role;
 import br.com.nexapay.auth.domain.UserAccount;
 import org.springframework.beans.factory.annotation.Value;
@@ -41,6 +42,13 @@ public class JwtTokenService {
                 .sorted(Comparator.naturalOrder())
                 .toList();
 
+        List<String> permissions = user.getRoles().stream()
+                .flatMap(role -> role.getPermissions().stream())
+                .map(Permission::getName)
+                .distinct()
+                .sorted(Comparator.naturalOrder())
+                .toList();
+
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer(issuer)
                 .issuedAt(issuedAt)
@@ -48,6 +56,7 @@ public class JwtTokenService {
                 .subject(user.getId().toString())
                 .claim("email", user.getEmail())
                 .claim("roles", roles)
+                .claim("permissions", permissions)
                 .build();
 
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
