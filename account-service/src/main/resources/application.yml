@@ -33,6 +33,10 @@ nexapay:
   outbox:
     enabled: true
     fixed-delay-ms: 2000
+  security:
+    jwt:
+      issuer: https://nexapay.local/auth
+      secret: ${NEXAPAY_JWT_SECRET:nexapay-local-dev-secret-2026-change-me}
 
 management:
   endpoints:

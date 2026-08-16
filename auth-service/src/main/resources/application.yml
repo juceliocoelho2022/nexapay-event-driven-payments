@@ -1,0 +1,32 @@
+server:
+  port: 8085
+
+spring:
+  application:
+    name: nexapay-auth-service
+
+  datasource:
+    url: jdbc:postgresql://localhost:5439/nexapay_auth
+    username: nexapay
+    password: nexapay
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+
+  flyway:
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+nexapay:
+  security:
+    jwt:
+      issuer: https://nexapay.local/auth
+      secret: ${NEXAPAY_JWT_SECRET:nexapay-local-dev-secret-2026-change-me}
+      ttl-seconds: 3600

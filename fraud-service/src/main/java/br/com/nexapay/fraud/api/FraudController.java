@@ -3,6 +3,7 @@ package br.com.nexapay.fraud.api;
 import br.com.nexapay.fraud.domain.FraudDecision;
 import br.com.nexapay.fraud.service.FraudService;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,6 +23,7 @@ public class FraudController {
     }
 
     @GetMapping("/payments/{paymentId}")
+    @PreAuthorize("hasAuthority('FRAUD_READ')")
     public FraudDecisionResponse getByPaymentId(@PathVariable UUID paymentId) {
         FraudDecision decision = fraudService.findByPaymentId(paymentId)
                 .orElseThrow(() -> new ResponseStatusException(
