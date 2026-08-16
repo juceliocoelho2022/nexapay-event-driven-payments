@@ -18,6 +18,11 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -83,6 +88,44 @@ class FraudDecisionIntegrationTest {
 
         assertThat(repository.count()).isEqualTo(1);
         assertThat(second.getId()).isEqualTo(first.getId());
+    }
+
+    @Test
+    void shouldIgnoreConcurrentDuplicatedPaymentEventWithoutThrowing() throws Exception {
+        PaymentCreatedEvent event = event("1000.00");
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+
+        try {
+            Future<FraudDecision> first = executor.submit(() -> invokeWhenReleased(event, ready, start));
+            Future<FraudDecision> second = executor.submit(() -> invokeWhenReleased(event, ready, start));
+
+            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+
+            FraudDecision firstDecision = first.get(30, TimeUnit.SECONDS);
+            FraudDecision secondDecision = second.get(30, TimeUnit.SECONDS);
+
+            assertThat(firstDecision.getId()).isEqualTo(secondDecision.getId());
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(repository.count()).isEqualTo(1);
+        assertThat(repository.findByEventId(event.eventId())).isPresent();
+    }
+
+    private FraudDecision invokeWhenReleased(
+            PaymentCreatedEvent event,
+            CountDownLatch ready,
+            CountDownLatch start
+    ) throws InterruptedException {
+        ready.countDown();
+        if (!start.await(10, TimeUnit.SECONDS)) {
+            throw new IllegalStateException("Concurrent fraud test start latch timed out");
+        }
+        return fraudService.analyze(event);
     }
 
     private PaymentCreatedEvent event(String amount) {
