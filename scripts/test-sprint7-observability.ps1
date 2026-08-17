@@ -9,6 +9,8 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $runId = [guid]::NewGuid().ToString("N").Substring(0, 10)
 $ownedProcesses = @()
 $fatalError = $null
+$logDir = Join-Path $repoRoot "logs"
+$oldLogDir = $env:NEXAPAY_LOG_DIR
 
 $results = [ordered]@{
     "Full Maven reactor" = $null
@@ -18,7 +20,9 @@ $results = [ordered]@{
     "Fraud Prometheus endpoint" = $null
     "Auth Prometheus endpoint" = $null
     "Prometheus scrapes 5 services" = $null
-    "Grafana datasource and dashboard" = $null
+    "Custom NexaPay metrics" = $null
+    "Loki + Alloy centralized logs" = $null
+    "Grafana datasources and dashboards" = $null
 }
 
 function Require-Command {
@@ -203,6 +207,70 @@ function Wait-PrometheusFiveTargets {
     throw "Prometheus did not report all 5 NexaPay services as UP within $TimeoutSeconds seconds."
 }
 
+function Assert-CustomNexaPayMetrics {
+    $payment = [string](Invoke-WebRequest `
+        -Uri "http://localhost:8081/actuator/prometheus" `
+        -UseBasicParsing `
+        -TimeoutSec 10 `
+        -ErrorAction Stop).Content
+
+    $account = [string](Invoke-WebRequest `
+        -Uri "http://localhost:8082/actuator/prometheus" `
+        -UseBasicParsing `
+        -TimeoutSec 10 `
+        -ErrorAction Stop).Content
+
+    if (-not $payment.Contains("nexapay_outbox_batch_pending")) {
+        throw "Payment custom outbox metric was not exposed."
+    }
+
+    if (-not $account.Contains("nexapay_outbox_batch_pending")) {
+        throw "Account custom outbox metric was not exposed."
+    }
+}
+
+function Assert-LokiPipeline {
+    param([int]$TimeoutSeconds = 90)
+
+    if (-not (Test-HttpHealth -Url "http://localhost:3100/ready" -TimeoutSeconds $TimeoutSeconds)) {
+        throw "Loki did not become ready."
+    }
+
+    if (-not (Test-HttpHealth -Url "http://localhost:12345/" -TimeoutSeconds $TimeoutSeconds)) {
+        throw "Grafana Alloy UI did not become available."
+    }
+
+    $marker = "SPRINT7-LOKI-$runId"
+    $paymentLog = Join-Path $logDir "nexapay-payment-service.log"
+    Add-Content -Path $paymentLog -Value "INFO $marker centralized-log-validation"
+
+    $logQl = '{service_name="nexapay-payment-service"} |= "' + $marker + '"'
+    $encodedQuery = [Uri]::EscapeDataString($logQl)
+    $url = "http://localhost:3100/loki/api/v1/query_range?query=$encodedQuery&start=0&limit=50&direction=backward"
+
+    $watch = [Diagnostics.Stopwatch]::StartNew()
+    while ($watch.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
+        try {
+            $response = Invoke-RestMethod -Uri $url -TimeoutSec 10 -ErrorAction Stop
+            if ($response.status -eq "success") {
+                foreach ($stream in @($response.data.result)) {
+                    foreach ($value in @($stream.values)) {
+                        if ([string]$value[1] -like "*$marker*") {
+                            return
+                        }
+                    }
+                }
+            }
+        }
+        catch {
+        }
+
+        Start-Sleep -Seconds 3
+    }
+
+    throw "Alloy did not deliver the validation log line to Loki."
+}
+
 function Assert-GrafanaProvisioning {
     param([int]$TimeoutSeconds = 90)
 
@@ -214,24 +282,42 @@ function Assert-GrafanaProvisioning {
     $encoded = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($pair))
     $headers = @{ Authorization = "Basic $encoded" }
 
-    $datasource = Invoke-RestMethod `
+    $prometheus = Invoke-RestMethod `
         -Uri "http://localhost:3000/api/datasources/uid/prometheus" `
         -Headers $headers `
         -TimeoutSec 10 `
         -ErrorAction Stop
 
-    if ($datasource.type -ne "prometheus") {
+    if ($prometheus.type -ne "prometheus") {
         throw "Grafana Prometheus datasource was not provisioned correctly."
     }
 
-    $dashboard = Invoke-RestMethod `
-        -Uri "http://localhost:3000/api/dashboards/uid/nexapay-overview" `
+    $loki = Invoke-RestMethod `
+        -Uri "http://localhost:3000/api/datasources/uid/loki" `
         -Headers $headers `
         -TimeoutSec 10 `
         -ErrorAction Stop
 
-    if ($dashboard.dashboard.title -ne "NexaPay Overview") {
-        throw "NexaPay Grafana dashboard was not provisioned correctly."
+    if ($loki.type -ne "loki") {
+        throw "Grafana Loki datasource was not provisioned correctly."
+    }
+
+    $dashboards = @(
+        @{ Uid = "nexapay-overview"; Title = "NexaPay Overview" },
+        @{ Uid = "nexapay-resilience"; Title = "NexaPay Resilience" },
+        @{ Uid = "nexapay-logs"; Title = "NexaPay Logs" }
+    )
+
+    foreach ($expected in $dashboards) {
+        $dashboard = Invoke-RestMethod `
+            -Uri ("http://localhost:3000/api/dashboards/uid/{0}" -f $expected.Uid) `
+            -Headers $headers `
+            -TimeoutSec 10 `
+            -ErrorAction Stop
+
+        if ($dashboard.dashboard.title -ne $expected.Title) {
+            throw "Grafana dashboard '$($expected.Title)' was not provisioned correctly."
+        }
     }
 }
 
@@ -259,6 +345,9 @@ try {
     Require-Command "mvn"
     Require-Command "docker"
 
+    New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+    $env:NEXAPAY_LOG_DIR = $logDir
+
     Invoke-Check "Full Maven reactor" {
         & mvn -B clean test
         if ($LASTEXITCODE -ne 0) {
@@ -271,7 +360,7 @@ try {
     }
 
     Write-Host "`n=== Starting NexaPay infrastructure + observability stack ==="
-    & docker compose up -d postgres postgres-accounts postgres-ledger postgres-fraud postgres-auth kafka prometheus grafana
+    & docker compose up -d postgres postgres-accounts postgres-ledger postgres-fraud postgres-auth kafka prometheus loki alloy grafana
     if ($LASTEXITCODE -ne 0) {
         throw "docker compose up failed."
     }
@@ -299,40 +388,38 @@ try {
     if ($null -ne $authProcess) { $ownedProcesses += $authProcess }
 
     Invoke-Check "Payment Prometheus endpoint" {
-        Assert-PrometheusEndpoint `
-            -Url "http://localhost:8081/actuator/prometheus" `
-            -Application "nexapay-payment-service"
+        Assert-PrometheusEndpoint -Url "http://localhost:8081/actuator/prometheus" -Application "nexapay-payment-service"
     }
 
     Invoke-Check "Account Prometheus endpoint" {
-        Assert-PrometheusEndpoint `
-            -Url "http://localhost:8082/actuator/prometheus" `
-            -Application "nexapay-account-service"
+        Assert-PrometheusEndpoint -Url "http://localhost:8082/actuator/prometheus" -Application "nexapay-account-service"
     }
 
     Invoke-Check "Ledger Prometheus endpoint" {
-        Assert-PrometheusEndpoint `
-            -Url "http://localhost:8083/actuator/prometheus" `
-            -Application "nexapay-ledger-service"
+        Assert-PrometheusEndpoint -Url "http://localhost:8083/actuator/prometheus" -Application "nexapay-ledger-service"
     }
 
     Invoke-Check "Fraud Prometheus endpoint" {
-        Assert-PrometheusEndpoint `
-            -Url "http://localhost:8084/actuator/prometheus" `
-            -Application "nexapay-fraud-service"
+        Assert-PrometheusEndpoint -Url "http://localhost:8084/actuator/prometheus" -Application "nexapay-fraud-service"
     }
 
     Invoke-Check "Auth Prometheus endpoint" {
-        Assert-PrometheusEndpoint `
-            -Url "http://localhost:8085/actuator/prometheus" `
-            -Application "nexapay-auth-service"
+        Assert-PrometheusEndpoint -Url "http://localhost:8085/actuator/prometheus" -Application "nexapay-auth-service"
     }
 
     Invoke-Check "Prometheus scrapes 5 services" {
         Wait-PrometheusFiveTargets -TimeoutSeconds 90
     }
 
-    Invoke-Check "Grafana datasource and dashboard" {
+    Invoke-Check "Custom NexaPay metrics" {
+        Assert-CustomNexaPayMetrics
+    }
+
+    Invoke-Check "Loki + Alloy centralized logs" {
+        Assert-LokiPipeline -TimeoutSeconds 90
+    }
+
+    Invoke-Check "Grafana datasources and dashboards" {
         Assert-GrafanaProvisioning -TimeoutSeconds 90
     }
 }
@@ -349,6 +436,13 @@ finally {
         }
         catch {
         }
+    }
+
+    if ($null -eq $oldLogDir) {
+        Remove-Item Env:NEXAPAY_LOG_DIR -ErrorAction SilentlyContinue
+    }
+    else {
+        $env:NEXAPAY_LOG_DIR = $oldLogDir
     }
 
     Pop-Location
