@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../auth/AuthContext'
 import { Icon } from '../components/Icon'
-import { apiFetch } from '../lib/api'
+import { apiFetch, publicApiFetch } from '../lib/api'
 import { formatCurrency, shortId } from '../lib/format'
 import { getTrackedAccountIds, getTrackedPaymentIds } from '../lib/storage'
 import type { Account } from '../types'
@@ -17,7 +17,7 @@ export function DashboardPage() {
   const [balanceLoading, setBalanceLoading] = useState(true)
 
   useEffect(() => {
-    void apiFetch<{ status: string }>('/actuator/health')
+    void publicApiFetch<{ status: string }>('/actuator/health')
       .then((response) => setGatewayStatus(response.status === 'UP' ? 'UP' : 'DOWN'))
       .catch(() => setGatewayStatus('DOWN'))
 
