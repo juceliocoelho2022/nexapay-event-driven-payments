@@ -97,6 +97,10 @@ management:
       export:
         enabled: true
 
+logging:
+  file:
+    name: ${NEXAPAY_LOG_DIR:./logs}/nexapay-gateway-service.log
+
 nexapay:
   security:
     jwt:
