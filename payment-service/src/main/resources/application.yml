@@ -30,6 +30,10 @@ spring:
       properties:
         enable.idempotence: true
 
+logging:
+  file:
+    name: ${NEXAPAY_LOG_DIR:logs}/nexapay-payment-service.log
+
 management:
   endpoints:
     web:
