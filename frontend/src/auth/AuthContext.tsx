@@ -1,5 +1,11 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { apiFetch, clearAccessToken, getAccessToken, setAccessToken } from '../lib/api'
+import {
+  apiFetch,
+  clearAccessToken,
+  getAccessToken,
+  publicApiFetch,
+  setAccessToken,
+} from '../lib/api'
 import type { LoginResponse, MeResponse } from '../types'
 
 type AuthContextValue = {
@@ -39,7 +45,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   async function login(email: string, password: string) {
-    const response = await apiFetch<LoginResponse>('/api/v1/auth/login', {
+    clearAccessToken()
+    const response = await publicApiFetch<LoginResponse>('/api/v1/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     })
@@ -48,7 +55,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function register(email: string, password: string) {
-    await apiFetch('/api/v1/auth/register', {
+    clearAccessToken()
+    await publicApiFetch('/api/v1/auth/register', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     })
