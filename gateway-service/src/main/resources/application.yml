@@ -1,0 +1,108 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: nexapay-gateway-service
+
+  data:
+    redis:
+      host: ${NEXAPAY_REDIS_HOST:localhost}
+      port: ${NEXAPAY_REDIS_PORT:6379}
+      connect-timeout: 2s
+      timeout: 2s
+
+  cloud:
+    gateway:
+      server:
+        webflux:
+          metrics:
+            enabled: true
+          redis-route-definition-repository:
+            enabled: false
+          httpclient:
+            connect-timeout: 3000
+            response-timeout: 10s
+          routes:
+            - id: auth-service
+              uri: ${AUTH_SERVICE_URL:http://localhost:8085}
+              predicates:
+                - Path=/api/v1/auth/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@gatewayKeyResolver}"
+                    redis-rate-limiter.replenishRate: 2
+                    redis-rate-limiter.burstCapacity: 4
+                    redis-rate-limiter.requestedTokens: 1
+
+            - id: payment-service
+              uri: ${PAYMENT_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/api/v1/payments/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@gatewayKeyResolver}"
+                    redis-rate-limiter.replenishRate: 20
+                    redis-rate-limiter.burstCapacity: 40
+                    redis-rate-limiter.requestedTokens: 1
+
+            - id: account-service
+              uri: ${ACCOUNT_SERVICE_URL:http://localhost:8082}
+              predicates:
+                - Path=/api/v1/accounts/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@gatewayKeyResolver}"
+                    redis-rate-limiter.replenishRate: 20
+                    redis-rate-limiter.burstCapacity: 40
+                    redis-rate-limiter.requestedTokens: 1
+
+            - id: ledger-service
+              uri: ${LEDGER_SERVICE_URL:http://localhost:8083}
+              predicates:
+                - Path=/api/v1/ledger/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@gatewayKeyResolver}"
+                    redis-rate-limiter.replenishRate: 20
+                    redis-rate-limiter.burstCapacity: 40
+                    redis-rate-limiter.requestedTokens: 1
+
+            - id: fraud-service
+              uri: ${FRAUD_SERVICE_URL:http://localhost:8084}
+              predicates:
+                - Path=/api/v1/fraud/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@gatewayKeyResolver}"
+                    redis-rate-limiter.replenishRate: 10
+                    redis-rate-limiter.burstCapacity: 20
+                    redis-rate-limiter.requestedTokens: 1
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+
+logging:
+  file:
+    name: ${NEXAPAY_LOG_DIR:./logs}/nexapay-gateway-service.log
+
+nexapay:
+  security:
+    jwt:
+      issuer: https://nexapay.local/auth
+      secret: ${NEXAPAY_JWT_SECRET:nexapay-local-dev-secret-2026-change-me}

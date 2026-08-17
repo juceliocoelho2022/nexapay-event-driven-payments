@@ -22,3 +22,10 @@ scrape_configs:
       - targets: ["host.docker.internal:8085"]
         labels:
           service: auth
+
+  - job_name: nexapay-gateway
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["host.docker.internal:8080"]
+        labels:
+          service: gateway
