@@ -5,16 +5,26 @@ loki.source.file "nexapay_services" {
     { __path__ = "/var/log/nexapay/nexapay-ledger-service.log", service_name = "nexapay-ledger-service" },
     { __path__ = "/var/log/nexapay/nexapay-fraud-service.log", service_name = "nexapay-fraud-service" },
     { __path__ = "/var/log/nexapay/nexapay-auth-service.log", service_name = "nexapay-auth-service" },
-    { __path__ = "/var/log/nexapay/sprint7-validation-*.log", service_name = "nexapay-sprint7-validation" },
   ]
 
   forward_to = [loki.write.local.receiver]
   tail_from_end = false
+}
 
-  file_match {
-    enabled = true
-    sync_period = "2s"
-  }
+local.file_match "sprint7_validation" {
+  path_targets = [
+    {
+      __path__ = "/var/log/nexapay/sprint7-validation-*.log",
+      service_name = "nexapay-sprint7-validation",
+    },
+  ]
+  sync_period = "2s"
+}
+
+loki.source.file "sprint7_validation" {
+  targets = local.file_match.sprint7_validation.targets
+  forward_to = [loki.write.local.receiver]
+  tail_from_end = false
 }
 
 loki.write "local" {
