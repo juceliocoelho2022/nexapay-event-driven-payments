@@ -7,8 +7,8 @@ Set-StrictMode -Version 2.0
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $logDir = Join-Path $repoRoot "logs"
-$validationLog = Join-Path $logDir "sprint7-validation.log"
 $runId = [guid]::NewGuid().ToString("N").Substring(0, 10)
+$validationLog = Join-Path $logDir ("sprint7-validation-{0}.log" -f $runId)
 $marker = "SPRINT7-LOKI-$runId"
 
 function Wait-Http {
@@ -41,7 +41,6 @@ try {
     }
 
     New-Item -ItemType Directory -Force -Path $logDir | Out-Null
-    Set-Content -Path $validationLog -Value "INFO $marker centralized-log-validation" -Encoding UTF8
 
     & docker compose up -d loki alloy
     if ($LASTEXITCODE -ne 0) {
@@ -55,6 +54,8 @@ try {
 
     Wait-Http -Url "http://localhost:3100/ready" -Timeout $TimeoutSeconds
     Wait-Http -Url "http://localhost:12345/" -Timeout $TimeoutSeconds
+
+    Set-Content -Path $validationLog -Value "INFO $marker centralized-log-validation" -Encoding UTF8
 
     $logQl = '{service_name="nexapay-sprint7-validation"} |= "' + $marker + '"'
     $encodedQuery = [Uri]::EscapeDataString($logQl)
