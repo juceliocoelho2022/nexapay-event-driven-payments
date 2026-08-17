@@ -1,0 +1,23 @@
+loki.source.file "nexapay_services" {
+  targets = [
+    { __path__ = "/var/log/nexapay/nexapay-payment-service.log", service_name = "nexapay-payment-service" },
+    { __path__ = "/var/log/nexapay/nexapay-account-service.log", service_name = "nexapay-account-service" },
+    { __path__ = "/var/log/nexapay/nexapay-ledger-service.log", service_name = "nexapay-ledger-service" },
+    { __path__ = "/var/log/nexapay/nexapay-fraud-service.log", service_name = "nexapay-fraud-service" },
+    { __path__ = "/var/log/nexapay/nexapay-auth-service.log", service_name = "nexapay-auth-service" },
+  ]
+
+  forward_to = [loki.write.local.receiver]
+  tail_from_end = false
+
+  file_match {
+    enabled = true
+    sync_period = "5s"
+  }
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
