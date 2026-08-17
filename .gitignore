@@ -4,3 +4,5 @@ target/
 **/target/
 .env
 .DS_Store
+logs/
+**/logs/

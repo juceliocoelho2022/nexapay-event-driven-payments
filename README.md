@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  Plataforma backend de pagamentos construída com Java 21, Spring Boot, Apache Kafka, PostgreSQL, Flyway, Docker Compose, Transactional Outbox e Spring Security.
+  Plataforma backend de pagamentos construída com Java 21, Spring Boot, Apache Kafka, PostgreSQL, Flyway, Docker Compose, Transactional Outbox, Spring Security e observabilidade com Prometheus, Grafana, Loki e Alloy.
 </p>
 
 <p align="center">
@@ -18,7 +18,8 @@
   <img src="https://img.shields.io/badge/PostgreSQL-17-blue" alt="PostgreSQL 17"/>
   <img src="https://img.shields.io/badge/Apache%20Kafka-3.9.x-black" alt="Apache Kafka"/>
   <img src="https://img.shields.io/badge/Security-JWT-blueviolet" alt="JWT Security"/>
-  <img src="https://img.shields.io/badge/Sprints-6%20conclu%C3%ADdas-success" alt="6 Sprints concluídas"/>
+  <img src="https://img.shields.io/badge/Observability-Prometheus%20%7C%20Grafana%20%7C%20Loki-orange" alt="Observability"/>
+  <img src="https://img.shields.io/badge/Sprints-7%20conclu%C3%ADdas-success" alt="7 Sprints concluídas"/>
 </p>
 
 ---
@@ -44,7 +45,8 @@ Sprint 3 — Ledger Service    ✅ Concluída
 Sprint 4 — Fraud Service     ✅ Concluída
 Sprint 5 — Segurança         ✅ Concluída
 Sprint 6 — Resiliência       ✅ Concluída
-Sprint 7 — Observabilidade   ⏳ Próxima
+Sprint 7 — Observabilidade   ✅ Concluída
+Sprint 8 — API Gateway       ⏳ Próxima
 ```
 
 ---
@@ -92,9 +94,13 @@ Sprint 7 — Observabilidade   ⏳ Próxima
         PostgreSQL :5438
 
           Auth PostgreSQL :5439
+
+Observabilidade:
+  Serviços /actuator/prometheus -> Prometheus :9090 -> Grafana :3000
+  logs/*.log -> Grafana Alloy :12345 -> Loki :3100 -> Grafana :3000
 ```
 
-> O arquivo `docs/images/nexapay-architecture.png` representa a evolução visual do projeto. O diagrama textual acima descreve a arquitetura implementada até a Sprint 6.
+> O arquivo `docs/images/nexapay-architecture.png` representa a evolução visual do projeto. O diagrama textual acima descreve a arquitetura implementada até a Sprint 7.
 
 ### Semântica de eventos
 
@@ -129,6 +135,18 @@ Por isso, a arquitetura assume que consumidores devem ser idempotentes e tolerar
 - Dead Letter Topics
 - bancos dedicados por serviço
 
+### Observabilidade
+
+- Spring Boot Actuator
+- Micrometer
+- Prometheus
+- Grafana
+- Loki
+- Grafana Alloy
+- dashboards provisionados automaticamente
+- métricas JVM/HTTP e métricas de domínio/resiliência do NexaPay
+- logs centralizados dos microsserviços
+
 ### Testes
 
 - JUnit 5
@@ -139,6 +157,7 @@ Por isso, a arquitetura assume que consumidores devem ser idempotentes e tolerar
 - Testcontainers
 - testes de concorrência com PostgreSQL real
 - testes E2E de retry, DLT e replay controlado
+- validação automatizada de Prometheus, Grafana, Loki e Alloy
 
 ### Infraestrutura
 
@@ -150,7 +169,7 @@ Por isso, a arquitetura assume que consumidores devem ser idempotentes e tolerar
 
 # Serviços
 
-## Payment Service — Sprint 1 + hardening Sprint 6 ✅
+## Payment Service — Sprint 1 + hardening Sprint 6/7 ✅
 
 **Aplicação:** `8081`  
 **PostgreSQL:** `5435`  
@@ -171,9 +190,11 @@ nexapay.payment.created.v1
 
 Na Sprint 6, a idempotência foi fortalecida para concorrência. A criação usa reserva atômica no PostgreSQL com `INSERT ... ON CONFLICT DO NOTHING`, apoiada pela constraint única de `idempotency_key`. Chamadas simultâneas com a mesma chave convergem para um único pagamento persistido, comportamento coberto por teste concorrente com Testcontainers.
 
+Na Sprint 7, o serviço passou a expor métricas Prometheus e métricas do Outbox, incluindo lote pendente, publicações e falhas de publicação.
+
 ---
 
-## Account Service — Sprint 2 ✅
+## Account Service — Sprint 2 + observabilidade Sprint 7 ✅
 
 **Aplicação:** `8082`  
 **PostgreSQL:** `5436`  
@@ -201,11 +222,12 @@ Recursos principais:
 - transações Spring;
 - `PESSIMISTIC_WRITE` para operações de saldo;
 - Transactional Outbox;
-- publicação de `nexapay.account.credited.v1` e `nexapay.account.debited.v1`.
+- publicação de `nexapay.account.credited.v1` e `nexapay.account.debited.v1`;
+- métricas Prometheus e métricas do Outbox.
 
 ---
 
-## Ledger Service — Sprint 3 + hardening Sprint 6 ✅
+## Ledger Service — Sprint 3 + hardening Sprint 6/7 ✅
 
 **Aplicação:** `8083`  
 **PostgreSQL:** `5437`  
@@ -241,13 +263,14 @@ Recursos de resiliência:
 - DLT por tópico original, preservando a partição;
 - payload JSON inválido tratado como não-retryable e encaminhado diretamente para recuperação/DLT;
 - proteção contra replay concorrente por `eventId` com operação atômica no PostgreSQL;
-- validação E2E com indisponibilidade real do PostgreSQL.
+- validação E2E com indisponibilidade real do PostgreSQL;
+- métricas de falhas de entrega, retries, publicação em DLT e falhas de recuperação.
 
 > Não é um ledger contábil double-entry; registra lançamentos derivados dos eventos do Account Service.
 
 ---
 
-## Fraud Service — Sprint 4 + hardening Sprint 6 ✅
+## Fraud Service — Sprint 4 + hardening Sprint 6/7 ✅
 
 **Aplicação:** `8084`  
 **PostgreSQL:** `5438`  
@@ -280,14 +303,16 @@ Endpoint protegido:
 GET /api/v1/fraud/payments/{paymentId}   -> FRAUD_READ
 ```
 
-Recursos de resiliência:
+Recursos de resiliência e observabilidade:
 
 - mesma política de retry/DLT do Ledger;
 - payload inválido classificado como não-retryable;
 - replay concorrente protegido por `eventId` no PostgreSQL;
 - teste concorrente de idempotência;
 - teste E2E de falha do PostgreSQL seguido de DLT;
-- replay controlado após recuperação do banco.
+- replay controlado após recuperação do banco;
+- métricas Kafka de falha/retry/DLT;
+- métricas das decisões de fraude.
 
 `ROLE_USER` não recebe `FRAUD_READ`; a permissão fica reservada ao `ROLE_ADMIN` no modelo atual.
 
@@ -295,7 +320,7 @@ Recursos de resiliência:
 
 ---
 
-## Auth Service — Sprint 5 ✅
+## Auth Service — Sprint 5 + observabilidade Sprint 7 ✅
 
 **Aplicação:** `8085`  
 **PostgreSQL:** `5439`  
@@ -308,6 +333,7 @@ POST /api/v1/auth/register
 POST /api/v1/auth/login
 GET  /actuator/health
 GET  /actuator/info
+GET  /actuator/prometheus
 ```
 
 Endpoint autenticado:
@@ -327,7 +353,8 @@ GET /api/v1/auth/me   -> AUTH_SELF_READ
 - tokens com expiração de 3600 segundos;
 - issuer `https://nexapay.local/auth`;
 - Resource Server JWT nos serviços protegidos;
-- autorização com `@PreAuthorize`.
+- autorização com `@PreAuthorize`;
+- métricas Prometheus via Actuator/Micrometer.
 
 ### JWT atual
 
@@ -387,6 +414,47 @@ powershell -ExecutionPolicy Bypass -File .\scripts\replay-dlt.ps1 `
 ```
 
 O registro original permanece na DLT como evidência de quarentena/auditoria; o replay publica uma nova cópia no tópico original, e a idempotência do consumidor define o efeito sobre o estado.
+
+---
+
+# Sprint 7 — Observabilidade
+
+A Sprint 7 adiciona uma camada operacional completa sobre os cinco microsserviços.
+
+### Métricas
+
+Cada serviço expõe:
+
+```http
+GET /actuator/prometheus
+```
+
+O Prometheus coleta os cinco serviços e adiciona a tag `application` para identificar a origem das séries. Além das métricas padrão de JVM, processo e HTTP, o NexaPay possui métricas próprias para Outbox, decisões de fraude e resiliência Kafka.
+
+### Retry e DLT
+
+Ledger e Fraud registram métricas para:
+
+```text
+nexapay.kafka.delivery.failures
+nexapay.kafka.retry.attempts
+nexapay.kafka.dlt.published
+nexapay.kafka.dlt.publish.failures
+```
+
+### Logs centralizados
+
+Os serviços gravam arquivos em `logs/`. O Grafana Alloy coleta esses arquivos e envia para o Loki. O Grafana usa Loki como datasource para consulta centralizada.
+
+### Dashboards provisionados
+
+```text
+NexaPay Overview
+NexaPay Resilience
+NexaPay Logs
+```
+
+A configuração é versionada em `observability/` e provisionada automaticamente pelo Docker Compose.
 
 ---
 
@@ -454,6 +522,17 @@ Account PostgreSQL    localhost:5436
 Ledger PostgreSQL     localhost:5437
 Fraud PostgreSQL      localhost:5438
 Auth PostgreSQL       localhost:5439
+Prometheus            localhost:9090
+Grafana               localhost:3000
+Loki                  localhost:3100
+Grafana Alloy         localhost:12345
+```
+
+Grafana local:
+
+```text
+usuário: admin
+senha:   admin
 ```
 
 ## Aplicações
@@ -505,7 +584,26 @@ Fraud DB failure -> retry/DLT               PASS
 Controlled DLT replay                      PASS
 ```
 
-A validação também cobre idempotência concorrente com PostgreSQL real via Testcontainers para Payment, Ledger e Fraud.
+Validação automatizada da Sprint 7:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\test-sprint7-observability.ps1
+```
+
+A validação principal comprovou reactor Maven, endpoints Prometheus dos cinco serviços, cinco targets `UP`, métricas customizadas e provisioning do Grafana. O teste isolado do pipeline de logs é:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\test-sprint7-loki.ps1
+```
+
+Resultado final do pipeline de logs:
+
+```text
+[OK] Validation file is visible inside Alloy.
+[PASS] Loki + Alloy centralized logs
+```
+
+Com os resultados combinados, os 10 controles definidos para a Sprint 7 foram aprovados.
 
 ---
 
@@ -570,12 +668,19 @@ A validação também cobre idempotência concorrente com PostgreSQL real via Te
 - [x] testes E2E de falha de banco
 - [x] replay DLT após recuperação
 
-## Sprint 7 — Observabilidade
+## Sprint 7 — Observabilidade ✅
 
-- [ ] Prometheus
-- [ ] Grafana
-- [ ] Loki
-- [ ] dashboards
+- [x] Micrometer / Actuator Prometheus
+- [x] Prometheus com cinco targets
+- [x] Grafana
+- [x] métricas customizadas de Outbox
+- [x] métricas de retry/DLT
+- [x] métricas de fraude
+- [x] Loki
+- [x] Grafana Alloy
+- [x] logs centralizados
+- [x] dashboards Overview, Resilience e Logs
+- [x] validação automatizada do stack
 
 ## Sprint 8 — API Gateway
 
@@ -613,8 +718,9 @@ A validação também cobre idempotência concorrente com PostgreSQL real via Te
 - o replay da DLT é operacional e controlado, não automático;
 - o Ledger não é double-entry;
 - tópicos/DLT devem ser provisionados em produção com contagem de partições compatível quando for preservada a partição original;
+- credenciais do Grafana e segredos atuais são adequados somente para desenvolvimento local;
 - não há API Gateway;
-- observabilidade avançada e CI/CD permanecem no roadmap.
+- CI/CD e cloud permanecem no roadmap.
 
 ---
 

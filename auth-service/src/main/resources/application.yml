@@ -18,11 +18,22 @@ spring:
   flyway:
     enabled: true
 
+logging:
+  file:
+    name: ${NEXAPAY_LOG_DIR:logs}/nexapay-auth-service.log
+
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  prometheus:
+    metrics:
+      export:
+        enabled: true
 
 nexapay:
   security:

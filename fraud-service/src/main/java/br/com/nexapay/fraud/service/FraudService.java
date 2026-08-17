@@ -3,6 +3,7 @@ package br.com.nexapay.fraud.service;
 import br.com.nexapay.fraud.domain.FraudDecision;
 import br.com.nexapay.fraud.event.PaymentCreatedEvent;
 import br.com.nexapay.fraud.repository.FraudDecisionRepository;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -18,13 +19,16 @@ public class FraudService {
 
     private final FraudDecisionRepository repository;
     private final FraudRuleEngine ruleEngine;
+    private final MeterRegistry meterRegistry;
 
     public FraudService(
             FraudDecisionRepository repository,
-            FraudRuleEngine ruleEngine
+            FraudRuleEngine ruleEngine,
+            MeterRegistry meterRegistry
     ) {
         this.repository = repository;
         this.ruleEngine = ruleEngine;
+        this.meterRegistry = meterRegistry;
     }
 
     @Transactional
@@ -32,6 +36,7 @@ public class FraudService {
         Optional<FraudDecision> existing = repository.findByEventId(event.eventId());
 
         if (existing.isPresent()) {
+            meterRegistry.counter("nexapay.fraud.duplicates", "source", "precheck").increment();
             log.info("Ignoring duplicated fraud event. eventId={}", event.eventId());
             return existing.get();
         }
@@ -65,6 +70,7 @@ public class FraudService {
         );
 
         if (inserted == 0) {
+            meterRegistry.counter("nexapay.fraud.duplicates", "source", "concurrent_conflict").increment();
             FraudDecision winner = repository.findByEventId(event.eventId())
                     .orElseThrow(() -> new IllegalStateException(
                             "Fraud event was claimed but decision could not be loaded: " + event.eventId()
@@ -72,6 +78,11 @@ public class FraudService {
             log.info("Ignoring duplicated fraud event after concurrent insert. eventId={}", event.eventId());
             return winner;
         }
+
+        meterRegistry.counter(
+                "nexapay.fraud.decisions",
+                "decision", decision.getDecision().name()
+        ).increment();
 
         log.info(
                 "Fraud analysis completed. paymentId={}, decision={}, riskScore={}",

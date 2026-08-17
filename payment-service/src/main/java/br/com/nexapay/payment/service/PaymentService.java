@@ -11,6 +11,7 @@ import br.com.nexapay.payment.repository.OutboxEventRepository;
 import br.com.nexapay.payment.repository.PaymentRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,16 +25,19 @@ public class PaymentService {
     private final OutboxEventRepository outboxEventRepository;
     private final PaymentMapper paymentMapper;
     private final ObjectMapper objectMapper;
+    private final MeterRegistry meterRegistry;
 
     public PaymentService(
             PaymentRepository paymentRepository,
             OutboxEventRepository outboxEventRepository,
             PaymentMapper paymentMapper,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            MeterRegistry meterRegistry) {
         this.paymentRepository = paymentRepository;
         this.outboxEventRepository = outboxEventRepository;
         this.paymentMapper = paymentMapper;
         this.objectMapper = objectMapper;
+        this.meterRegistry = meterRegistry;
     }
 
     @Transactional
@@ -42,7 +46,10 @@ public class PaymentService {
             CreatePixPaymentRequest request) {
 
         return paymentRepository.findByIdempotencyKey(idempotencyKey)
-                .map(paymentMapper::toResponse)
+                .map(existing -> {
+                    meterRegistry.counter("nexapay.payment.idempotency.reused", "source", "precheck").increment();
+                    return paymentMapper.toResponse(existing);
+                })
                 .orElseGet(() -> createOrLoadPayment(idempotencyKey, request));
     }
 
@@ -85,6 +92,7 @@ public class PaymentService {
         );
 
         if (inserted == 0) {
+            meterRegistry.counter("nexapay.payment.idempotency.reused", "source", "concurrent_conflict").increment();
             return paymentRepository.findByIdempotencyKey(idempotencyKey)
                     .map(paymentMapper::toResponse)
                     .orElseThrow(() -> new IllegalStateException(
@@ -111,6 +119,7 @@ public class PaymentService {
         );
 
         outboxEventRepository.save(outbox);
+        meterRegistry.counter("nexapay.payment.created").increment();
 
         return paymentMapper.toResponse(payment);
     }
