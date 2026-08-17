@@ -6,6 +6,7 @@ import br.com.nexapay.payment.domain.PaymentStatus;
 import br.com.nexapay.payment.repository.OutboxEventRepository;
 import br.com.nexapay.payment.repository.PaymentRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -31,7 +32,8 @@ class PaymentServiceTest {
 
     @Test
     void shouldReturnExistingPaymentWhenIdempotencyKeyAlreadyExists() {
-        PaymentService service = newService();
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        PaymentService service = newService(registry);
 
         Payment existing = payment(
                 UUID.randomUUID(),
@@ -50,6 +52,8 @@ class PaymentServiceTest {
         );
 
         assertThat(response.id()).isEqualTo(existing.getId());
+        assertThat(registry.counter("nexapay.payment.idempotency.reused", "source", "precheck").count())
+                .isEqualTo(1.0);
 
         verify(paymentRepository, never()).insertIfIdempotencyKeyAbsent(
                 any(), anyString(), anyString(), anyString(), any(), any(), anyString(), any()
@@ -59,7 +63,8 @@ class PaymentServiceTest {
 
     @Test
     void shouldCreatePaymentAndOutboxWhenAtomicReservationWins() {
-        PaymentService service = newService();
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        PaymentService service = newService(registry);
 
         when(paymentRepository.findByIdempotencyKey("pedido-002"))
                 .thenReturn(Optional.empty());
@@ -74,6 +79,7 @@ class PaymentServiceTest {
 
         assertThat(response.status()).isEqualTo(PaymentStatus.PENDING);
         assertThat(response.amount()).isEqualByComparingTo("99.90");
+        assertThat(registry.counter("nexapay.payment.created").count()).isEqualTo(1.0);
 
         verify(paymentRepository).insertIfIdempotencyKeyAbsent(
                 any(), eq("pedido-002"), eq("ACC-2001"), eq("11999999999"),
@@ -84,7 +90,8 @@ class PaymentServiceTest {
 
     @Test
     void shouldLoadWinnerWhenConcurrentReservationLoses() {
-        PaymentService service = newService();
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        PaymentService service = newService(registry);
 
         Payment winner = payment(
                 UUID.randomUUID(),
@@ -106,15 +113,18 @@ class PaymentServiceTest {
         );
 
         assertThat(response.id()).isEqualTo(winner.getId());
+        assertThat(registry.counter("nexapay.payment.idempotency.reused", "source", "concurrent_conflict").count())
+                .isEqualTo(1.0);
         verify(outboxEventRepository, never()).save(any());
     }
 
-    private PaymentService newService() {
+    private PaymentService newService(SimpleMeterRegistry registry) {
         return new PaymentService(
                 paymentRepository,
                 outboxEventRepository,
                 new PaymentMapper(),
-                new ObjectMapper().findAndRegisterModules()
+                new ObjectMapper().findAndRegisterModules(),
+                registry
         );
     }
 
