@@ -6,3 +6,5 @@ target/
 .DS_Store
 logs/
 **/logs/
+frontend/node_modules/
+frontend/dist/
