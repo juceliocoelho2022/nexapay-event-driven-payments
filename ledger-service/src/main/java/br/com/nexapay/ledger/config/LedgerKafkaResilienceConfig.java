@@ -1,6 +1,7 @@
 package br.com.nexapay.ledger.config;
 
 import br.com.nexapay.ledger.messaging.InvalidLedgerEventPayloadException;
+import br.com.nexapay.ledger.observability.KafkaResilienceMetrics;
 import org.apache.kafka.common.TopicPartition;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -17,6 +18,7 @@ public class LedgerKafkaResilienceConfig {
     @Bean
     CommonErrorHandler ledgerKafkaErrorHandler(
             KafkaTemplate<Object, Object> kafkaTemplate,
+            KafkaResilienceMetrics metrics,
             @Value("${nexapay.kafka.resilience.retry-backoff-ms:1000}") long retryBackoffMs,
             @Value("${nexapay.kafka.resilience.max-retries:2}") long maxRetries
     ) {
@@ -34,6 +36,7 @@ public class LedgerKafkaResilienceConfig {
                 new FixedBackOff(retryBackoffMs, maxRetries)
         );
         errorHandler.addNotRetryableExceptions(InvalidLedgerEventPayloadException.class);
+        errorHandler.setRetryListeners(metrics);
 
         return errorHandler;
     }
