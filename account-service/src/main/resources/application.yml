@@ -27,6 +27,10 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
+logging:
+  file:
+    name: ${NEXAPAY_LOG_DIR:logs}/nexapay-account-service.log
+
 nexapay:
   kafka:
     manage-topics: true
