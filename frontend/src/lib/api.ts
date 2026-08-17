@@ -25,12 +25,24 @@ export function clearAccessToken() {
   sessionStorage.removeItem(TOKEN_KEY)
 }
 
-export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const headers = new Headers(init.headers)
-  const token = getAccessToken()
+type RequestOptions = {
+  authenticated: boolean
+}
 
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`)
+async function request<T>(
+  path: string,
+  init: RequestInit,
+  options: RequestOptions,
+): Promise<T> {
+  const headers = new Headers(init.headers)
+
+  if (options.authenticated) {
+    const token = getAccessToken()
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`)
+    }
+  } else {
+    headers.delete('Authorization')
   }
 
   if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
@@ -63,4 +75,12 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   }
 
   return payload as T
+}
+
+export function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  return request<T>(path, init, { authenticated: true })
+}
+
+export function publicApiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  return request<T>(path, init, { authenticated: false })
 }
