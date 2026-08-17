@@ -18,6 +18,10 @@ spring:
   flyway:
     enabled: true
 
+logging:
+  file:
+    name: ${NEXAPAY_LOG_DIR:logs}/nexapay-auth-service.log
+
 management:
   endpoints:
     web:
