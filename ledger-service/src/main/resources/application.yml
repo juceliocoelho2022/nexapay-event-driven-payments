@@ -31,6 +31,10 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
+logging:
+  file:
+    name: ${NEXAPAY_LOG_DIR:logs}/nexapay-ledger-service.log
+
 management:
   endpoints:
     web:
