@@ -2,6 +2,7 @@ package br.com.nexapay.payment.messaging;
 
 import br.com.nexapay.payment.domain.OutboxEvent;
 import br.com.nexapay.payment.repository.OutboxEventRepository;
+import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Component
 public class OutboxPublisher {
@@ -21,6 +23,7 @@ public class OutboxPublisher {
     private final OutboxEventRepository repository;
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final MeterRegistry meterRegistry;
+    private final AtomicInteger pendingBatchSize = new AtomicInteger();
 
     public OutboxPublisher(
             OutboxEventRepository repository,
@@ -29,6 +32,10 @@ public class OutboxPublisher {
         this.repository = repository;
         this.kafkaTemplate = kafkaTemplate;
         this.meterRegistry = meterRegistry;
+        Gauge.builder("nexapay.outbox.batch.pending", pendingBatchSize, AtomicInteger::get)
+                .tag("service", "payment")
+                .description("Number of unpublished outbox records loaded in the current publisher batch")
+                .register(meterRegistry);
     }
 
     @Scheduled(fixedDelayString = "${nexapay.outbox.fixed-delay-ms:2000}")
@@ -37,7 +44,7 @@ public class OutboxPublisher {
         List<OutboxEvent> events =
                 repository.findTop50ByPublishedFalseOrderByCreatedAtAsc();
 
-        meterRegistry.gauge("nexapay.outbox.batch.pending", events, List::size);
+        pendingBatchSize.set(events.size());
 
         for (OutboxEvent event : events) {
             try {
