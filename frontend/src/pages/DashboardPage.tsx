@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../auth/AuthContext'
 import { Icon } from '../components/Icon'
-import { apiFetch, publicApiFetch } from '../lib/api'
+import { apiFetch } from '../lib/api'
 import { formatCurrency, shortId } from '../lib/format'
 import { getTrackedAccountIds, getTrackedPaymentIds } from '../lib/storage'
 import type { Account } from '../types'
@@ -17,7 +17,16 @@ export function DashboardPage() {
   const [balanceLoading, setBalanceLoading] = useState(true)
 
   useEffect(() => {
-    void publicApiFetch<{ status: string }>('/actuator/health')
+    void fetch('/actuator/health', {
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Gateway health returned HTTP ${response.status}`)
+        }
+        return response.json() as Promise<{ status?: string }>
+      })
       .then((response) => setGatewayStatus(response.status === 'UP' ? 'UP' : 'DOWN'))
       .catch(() => setGatewayStatus('DOWN'))
 
