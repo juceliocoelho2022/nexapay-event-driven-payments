@@ -147,8 +147,48 @@ services:
 
     restart: unless-stopped
 
+  loki:
+    image: grafana/loki:3.7.2
+    container_name: nexapay-loki
+
+    ports:
+      - "3100:3100"
+
+    command:
+      - "-config.file=/etc/loki/loki-config.yml"
+
+    volumes:
+      - ./observability/loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - nexapay_loki_data:/loki
+
+    restart: unless-stopped
+
+  alloy:
+    image: grafana/alloy:v1.18.0
+    container_name: nexapay-alloy
+
+    ports:
+      - "12345:12345"
+
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - --disable-reporting
+      - /etc/alloy/config.alloy
+
+    volumes:
+      - ./observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - ./logs:/var/log/nexapay:ro
+      - nexapay_alloy_data:/var/lib/alloy/data
+
+    depends_on:
+      - loki
+
+    restart: unless-stopped
+
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:13.1.0
     container_name: nexapay-grafana
 
     ports:
@@ -166,6 +206,7 @@ services:
 
     depends_on:
       - prometheus
+      - loki
 
     restart: unless-stopped
 
@@ -176,4 +217,6 @@ volumes:
   nexapay_fraud_postgres_data:
   nexapay_auth_postgres_data:
   nexapay_prometheus_data:
+  nexapay_loki_data:
+  nexapay_alloy_data:
   nexapay_grafana_data:
