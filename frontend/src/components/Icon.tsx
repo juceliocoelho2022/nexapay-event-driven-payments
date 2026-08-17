@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+
 export type IconName =
   | 'dashboard'
   | 'accounts'
@@ -28,7 +30,7 @@ export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
     'aria-hidden': true,
   }
 
-  const paths: Record<IconName, React.ReactNode> = {
+  const paths: Record<IconName, ReactNode> = {
     dashboard: <><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></>,
     accounts: <><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 9h10M7 13h5"/></>,
     payments: <><path d="M7 17 17 7"/><path d="M8 7h9v9"/></>,
