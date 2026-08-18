@@ -7,11 +7,13 @@ import br.com.nexapay.payment.domain.Payment;
 import br.com.nexapay.payment.domain.PaymentStatus;
 import br.com.nexapay.payment.event.PaymentCreatedEvent;
 import br.com.nexapay.payment.exception.PaymentNotFoundException;
+import br.com.nexapay.payment.observability.CorrelationIdFilter;
 import br.com.nexapay.payment.repository.OutboxEventRepository;
 import br.com.nexapay.payment.repository.PaymentRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.MeterRegistry;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -109,11 +111,17 @@ public class PaymentService {
                 now
         );
 
+        String correlationId = MDC.get(CorrelationIdFilter.MDC_KEY);
+        if (correlationId == null || correlationId.isBlank()) {
+            correlationId = eventId.toString();
+        }
+
         OutboxEvent outbox = new OutboxEvent(
                 eventId,
                 paymentId,
                 "PaymentCreated",
                 toJson(event),
+                correlationId,
                 false,
                 now
         );
