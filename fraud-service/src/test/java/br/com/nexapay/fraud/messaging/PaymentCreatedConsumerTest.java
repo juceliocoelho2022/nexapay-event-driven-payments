@@ -2,6 +2,7 @@ package br.com.nexapay.fraud.messaging;
 
 import br.com.nexapay.fraud.service.FraudService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.internals.RecordHeader;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,7 +30,9 @@ class PaymentCreatedConsumerTest {
 
     @BeforeEach
     void setUp() {
-        consumer = new PaymentCreatedConsumer(new ObjectMapper(), fraudService);
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new JavaTimeModule());
+        consumer = new PaymentCreatedConsumer(objectMapper, fraudService);
         MDC.clear();
     }
 
