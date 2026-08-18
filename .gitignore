@@ -3,6 +3,7 @@
 target/
 **/target/
 .env
+.env.production
 .DS_Store
 logs/
 **/logs/
