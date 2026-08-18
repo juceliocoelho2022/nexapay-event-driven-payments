@@ -21,6 +21,9 @@ public class OutboxEvent {
     @Column(nullable = false, columnDefinition = "text")
     private String payload;
 
+    @Column(name = "correlation_id", length = 128)
+    private String correlationId;
+
     @Column(nullable = false)
     private boolean published;
 
@@ -40,10 +43,22 @@ public class OutboxEvent {
             String payload,
             boolean published,
             OffsetDateTime createdAt) {
+        this(id, aggregateId, eventType, payload, null, published, createdAt);
+    }
+
+    public OutboxEvent(
+            UUID id,
+            UUID aggregateId,
+            String eventType,
+            String payload,
+            String correlationId,
+            boolean published,
+            OffsetDateTime createdAt) {
         this.id = id;
         this.aggregateId = aggregateId;
         this.eventType = eventType;
         this.payload = payload;
+        this.correlationId = correlationId;
         this.published = published;
         this.createdAt = createdAt;
     }
@@ -62,6 +77,10 @@ public class OutboxEvent {
 
     public String getPayload() {
         return payload;
+    }
+
+    public String getCorrelationId() {
+        return correlationId;
     }
 
     public boolean isPublished() {
