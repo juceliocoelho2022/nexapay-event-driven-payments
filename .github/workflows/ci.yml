@@ -82,3 +82,61 @@ jobs:
 
       - name: Validate Docker Compose configuration
         run: docker compose config --quiet
+
+  service-images:
+    name: Image · ${{ matrix.module }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: backend
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - payment-service
+          - account-service
+          - ledger-service
+          - fraud-service
+          - auth-service
+          - gateway-service
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build service image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.service
+          push: false
+          build-args: |
+            MODULE=${{ matrix.module }}
+          tags: nexapay/${{ matrix.module }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.module }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.module }}
+
+  frontend-image:
+    name: Image · frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./frontend/Dockerfile
+          push: false
+          tags: nexapay/frontend:${{ github.sha }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
