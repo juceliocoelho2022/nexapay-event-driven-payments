@@ -80,8 +80,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Validate Docker Compose configuration
+      - name: Validate local Docker Compose configuration
         run: docker compose config --quiet
+
+      - name: Validate cloud-ready Docker Compose configuration
+        run: docker compose --env-file .env.production.example -f docker-compose.prod.yml config --quiet
 
   service-images:
     name: Image · ${{ matrix.module }}
