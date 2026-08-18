@@ -19,7 +19,7 @@
   <img src="https://img.shields.io/badge/Apache%20Kafka-3.9.x-black" alt="Apache Kafka"/>
   <img src="https://img.shields.io/badge/Security-JWT-blueviolet" alt="JWT Security"/>
   <img src="https://img.shields.io/badge/Observability-Prometheus%20%7C%20Grafana%20%7C%20Loki-orange" alt="Observability"/>
-  <img src="https://img.shields.io/badge/Sprints-7%20conclu%C3%ADdas-success" alt="7 Sprints concluídas"/>
+  <img src="https://img.shields.io/badge/Sprints-10%20conclu%C3%ADdas-success" alt="10 Sprints concluídas"/>
 </p>
 
 ---
@@ -46,8 +46,57 @@ Sprint 4 — Fraud Service     ✅ Concluída
 Sprint 5 — Segurança         ✅ Concluída
 Sprint 6 — Resiliência       ✅ Concluída
 Sprint 7 — Observabilidade   ✅ Concluída
-Sprint 8 — API Gateway       ⏳ Próxima
+Sprint 8 — API Gateway       ✅ Concluída
+Sprint 9 — Frontend          ✅ Concluída
+Sprint 10 — CI/CD e Cloud    ✅ Concluída
+Sprint 11 — Observabilidade  🚧 Em evolução
 ```
+
+---
+
+## Galeria do projeto
+
+### Visão geral
+
+<p align="center">
+  <img src="docs/images/NEXA01.png" alt="NexaPay visão geral" width="900"/>
+</p>
+
+### Stack tecnológica
+
+<p align="center">
+  <img src="docs/images/NEXA02.png" alt="NexaPay stack tecnológica" width="900"/>
+</p>
+
+### Arquitetura e fluxo de eventos
+
+<p align="center">
+  <img src="docs/images/NEXA03.png" alt="NexaPay arquitetura e fluxo de eventos" width="900"/>
+</p>
+
+### Evolução das sprints
+
+<p align="center">
+  <img src="docs/images/NEXA04.png" alt="NexaPay evolução das sprints" width="900"/>
+</p>
+
+### Frontend e experiência do usuário
+
+<p align="center">
+  <img src="docs/images/NEXA05.png" alt="NexaPay frontend" width="900"/>
+</p>
+
+### Ambiente e integração
+
+<p align="center">
+  <img src="docs/images/NEXA06.png" alt="NexaPay ambiente integrado" width="900"/>
+</p>
+
+### Containers Docker
+
+<p align="center">
+  <img src="docs/images/nexaDocker.png" alt="NexaPay containers Docker" width="900"/>
+</p>
 
 ---
 
@@ -100,7 +149,7 @@ Observabilidade:
   logs/*.log -> Grafana Alloy :12345 -> Loki :3100 -> Grafana :3000
 ```
 
-> O arquivo `docs/images/nexapay-architecture.png` representa a evolução visual do projeto. O diagrama textual acima descreve a arquitetura implementada até a Sprint 7.
+> O arquivo `docs/images/nexapay-architecture.png` representa a evolução visual do projeto. O diagrama textual acima descreve a arquitetura implementada.
 
 ### Semântica de eventos
 
@@ -164,6 +213,9 @@ Por isso, a arquitetura assume que consumidores devem ser idempotentes e tolerar
 - Docker
 - Docker Compose
 - Spring Boot Actuator
+- GitHub Actions
+- builds de imagens Docker
+- pipeline CI/CD
 
 ---
 
@@ -396,25 +448,6 @@ scripts/replay-dlt.ps1
 
 seleciona explicitamente uma mensagem por marcador único. O comportamento padrão é **dry-run**; a republicação exige `-Replay`.
 
-Exemplo de inspeção:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\replay-dlt.ps1 `
-  -Route fraud-payment `
-  -Marker "ACC-S6-FRAUD-EXEMPLO"
-```
-
-Replay explícito após corrigir a causa da falha:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\replay-dlt.ps1 `
-  -Route fraud-payment `
-  -Marker "ACC-S6-FRAUD-EXEMPLO" `
-  -Replay
-```
-
-O registro original permanece na DLT como evidência de quarentena/auditoria; o replay publica uma nova cópia no tópico original, e a idempotência do consumidor define o efeito sobre o estado.
-
 ---
 
 # Sprint 7 — Observabilidade
@@ -571,39 +604,11 @@ Validação automatizada da Sprint 6:
 powershell -ExecutionPolicy Bypass -File .\scripts\test-sprint6-resilience.ps1
 ```
 
-Resultado final validado:
-
-```text
-NEXAPAY SPRINT 6 VALIDATION
-========================================
-Full Maven reactor                         PASS
-Ledger malformed payload -> DLT            PASS
-Ledger DB failure -> retry/DLT             PASS
-Fraud malformed payload -> DLT             PASS
-Fraud DB failure -> retry/DLT               PASS
-Controlled DLT replay                      PASS
-```
-
 Validação automatizada da Sprint 7:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\test-sprint7-observability.ps1
 ```
-
-A validação principal comprovou reactor Maven, endpoints Prometheus dos cinco serviços, cinco targets `UP`, métricas customizadas e provisioning do Grafana. O teste isolado do pipeline de logs é:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\test-sprint7-loki.ps1
-```
-
-Resultado final do pipeline de logs:
-
-```text
-[OK] Validation file is visible inside Alloy.
-[PASS] Loki + Alloy centralized logs
-```
-
-Com os resultados combinados, os 10 controles definidos para a Sprint 7 foram aprovados.
 
 ---
 
@@ -682,28 +687,40 @@ Com os resultados combinados, os 10 controles definidos para a Sprint 7 foram ap
 - [x] dashboards Overview, Resilience e Logs
 - [x] validação automatizada do stack
 
-## Sprint 8 — API Gateway
+## Sprint 8 — API Gateway ✅
 
-- [ ] Spring Cloud Gateway
-- [ ] roteamento
-- [ ] autenticação centralizada
-- [ ] Rate Limiting
+- [x] Spring Cloud Gateway
+- [x] roteamento
+- [x] autenticação centralizada
+- [x] Rate Limiting
 
-## Sprint 9 — Frontend
+## Sprint 9 — Frontend ✅
 
-- [ ] React
-- [ ] Dashboard
-- [ ] pagamentos
-- [ ] contas
-- [ ] movimentações
-- [ ] decisões de fraude
+- [x] React
+- [x] Dashboard
+- [x] pagamentos
+- [x] contas
+- [x] movimentações
+- [x] decisões de fraude
 
-## Sprint 10 — CI/CD e Cloud
+## Sprint 10 — CI/CD e Cloud ✅
 
-- [ ] GitHub Actions
-- [ ] pipeline
-- [ ] empacotamento/deploy
-- [ ] cloud
+- [x] GitHub Actions
+- [x] pipeline backend Java 21/Maven
+- [x] pipeline frontend React/TypeScript
+- [x] validação Docker Compose local e cloud-ready
+- [x] build da imagem do frontend
+- [x] build das imagens Java dos microsserviços
+- [x] workflow de Container Release
+- [x] integração validada na `main`
+
+## Sprint 11 — Observabilidade avançada 🚧
+
+- [ ] revisar e consolidar métricas operacionais
+- [ ] correlationId ponta a ponta
+- [ ] logs estruturados
+- [ ] dashboards operacionais finais
+- [ ] validação dos principais SLOs técnicos
 
 ---
 
@@ -719,8 +736,7 @@ Com os resultados combinados, os 10 controles definidos para a Sprint 7 foram ap
 - o Ledger não é double-entry;
 - tópicos/DLT devem ser provisionados em produção com contagem de partições compatível quando for preservada a partição original;
 - credenciais do Grafana e segredos atuais são adequados somente para desenvolvimento local;
-- não há API Gateway;
-- CI/CD e cloud permanecem no roadmap.
+- hardening de produção e deploy cloud real continuam como evoluções do projeto.
 
 ---
 
