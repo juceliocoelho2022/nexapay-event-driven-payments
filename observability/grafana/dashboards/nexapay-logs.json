@@ -13,7 +13,7 @@
         "type": "loki",
         "uid": "loki"
       },
-      "description": "Number of log lines associated with the selected distributed operation.",
+      "description": "Number of structured log lines associated with the selected distributed operation.",
       "fieldConfig": {
         "defaults": {
           "unit": "short"
@@ -49,7 +49,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum(count_over_time({service_name=~\"$service\",service_name!=\"\"} |= \"$correlationId\" |~ \"(?i)$level\" [$__range]))",
+          "expr": "sum(count_over_time({service_name=~\"$service\",service_name!=\"\",level=~\"$level\"} | correlation_id=~\"$correlationId\" | keep service_name, level [$__range]))",
           "queryType": "instant",
           "refId": "A"
         }
@@ -62,7 +62,7 @@
         "type": "loki",
         "uid": "loki"
       },
-      "description": "Trace a distributed NexaPay operation across Payment, Outbox, Kafka and Fraud using the same correlation ID.",
+      "description": "Trace a distributed NexaPay operation across Payment, Outbox, Kafka and Fraud using structured metadata instead of raw text search.",
       "gridPos": {
         "h": 20,
         "w": 24,
@@ -88,7 +88,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "{service_name=~\"$service\",service_name!=\"\"} |= \"$correlationId\" |~ \"(?i)$level\"",
+          "expr": "{service_name=~\"$service\",service_name!=\"\",level=~\"$level\"} | correlation_id=~\"$correlationId\" | json | line_format \"{{.message}}\"",
           "queryType": "range",
           "refId": "A"
         }
@@ -104,6 +104,7 @@
     "logs",
     "loki",
     "correlation-id",
+    "structured-metadata",
     "distributed-observability"
   ],
   "templating": {
@@ -129,25 +130,25 @@
       },
       {
         "current": {
-          "text": "",
-          "value": ""
+          "text": ".+",
+          "value": ".+"
         },
         "label": "Correlation ID",
         "name": "correlationId",
         "options": [],
-        "query": "",
+        "query": ".+",
         "skipUrlSync": false,
         "type": "textbox"
       },
       {
         "current": {
           "text": "All",
-          "value": ".*"
+          "value": ".+"
         },
         "label": "Level",
         "name": "level",
         "options": [],
-        "query": "All : .*, INFO : INFO, WARN : WARN, ERROR : ERROR",
+        "query": "All : .+, INFO : INFO, WARN : WARN, ERROR : ERROR",
         "skipUrlSync": false,
         "type": "custom"
       }
@@ -161,5 +162,5 @@
   "timezone": "browser",
   "title": "NexaPay Distributed Logs",
   "uid": "nexapay-logs",
-  "version": 4
+  "version": 5
 }
