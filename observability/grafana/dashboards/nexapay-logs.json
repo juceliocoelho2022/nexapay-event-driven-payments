@@ -39,7 +39,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "{service_name=~\"$service\"} |= \"$correlationId\"",
+          "expr": "{service_name=~\"$service\",service_name!=\"\"} |= \"$correlationId\"",
           "queryType": "range",
           "refId": "A"
         }
@@ -60,6 +60,7 @@
   "templating": {
     "list": [
       {
+        "allValue": ".+",
         "current": {
           "text": "All",
           "value": "$__all"
@@ -99,5 +100,5 @@
   "timezone": "browser",
   "title": "NexaPay Distributed Logs",
   "uid": "nexapay-logs",
-  "version": 2
+  "version": 3
 }
