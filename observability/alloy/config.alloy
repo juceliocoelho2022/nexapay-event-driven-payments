@@ -1,10 +1,10 @@
 loki.source.file "nexapay_services" {
   targets = [
-    { __path__ = "/var/log/nexapay/nexapay-payment-service.log", service_name = "nexapay-payment-service" },
-    { __path__ = "/var/log/nexapay/nexapay-account-service.log", service_name = "nexapay-account-service" },
-    { __path__ = "/var/log/nexapay/nexapay-ledger-service.log", service_name = "nexapay-ledger-service" },
-    { __path__ = "/var/log/nexapay/nexapay-fraud-service.log", service_name = "nexapay-fraud-service" },
-    { __path__ = "/var/log/nexapay/nexapay-auth-service.log", service_name = "nexapay-auth-service" },
+    { __path__ = "/var/log/nexapay/payment/nexapay-payment-service.log", service_name = "nexapay-payment-service" },
+    { __path__ = "/var/log/nexapay/account/nexapay-account-service.log", service_name = "nexapay-account-service" },
+    { __path__ = "/var/log/nexapay/ledger/nexapay-ledger-service.log", service_name = "nexapay-ledger-service" },
+    { __path__ = "/var/log/nexapay/fraud/nexapay-fraud-service.log", service_name = "nexapay-fraud-service" },
+    { __path__ = "/var/log/nexapay/auth/nexapay-auth-service.log", service_name = "nexapay-auth-service" },
   ]
 
   forward_to = [loki.write.local.receiver]
@@ -14,7 +14,7 @@ loki.source.file "nexapay_services" {
 local.file_match "sprint7_validation" {
   path_targets = [
     {
-      __path__ = "/var/log/nexapay/sprint7-validation-*.log",
+      __path__ = "/var/log/nexapay/payment/sprint7-validation-*.log",
       service_name = "nexapay-sprint7-validation",
     },
   ]
