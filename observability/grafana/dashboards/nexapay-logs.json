@@ -13,12 +13,61 @@
         "type": "loki",
         "uid": "loki"
       },
-      "description": "Trace a distributed NexaPay operation across services using the same correlation ID.",
+      "description": "Number of log lines associated with the selected distributed operation.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "sum(count_over_time({service_name=~\"$service\",service_name!=\"\"} |= \"$correlationId\" |~ \"(?i)$level\" [$__range]))",
+          "queryType": "instant",
+          "refId": "A"
+        }
+      ],
+      "title": "Correlated Log Lines",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "description": "Trace a distributed NexaPay operation across Payment, Outbox, Kafka and Fraud using the same correlation ID.",
       "gridPos": {
         "h": 20,
         "w": 24,
         "x": 0,
-        "y": 0
+        "y": 5
       },
       "id": 1,
       "options": {
@@ -39,7 +88,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "{service_name=~\"$service\",service_name!=\"\"} |= \"$correlationId\"",
+          "expr": "{service_name=~\"$service\",service_name!=\"\"} |= \"$correlationId\" |~ \"(?i)$level\"",
           "queryType": "range",
           "refId": "A"
         }
@@ -89,6 +138,18 @@
         "query": "",
         "skipUrlSync": false,
         "type": "textbox"
+      },
+      {
+        "current": {
+          "text": "All",
+          "value": ".*"
+        },
+        "label": "Level",
+        "name": "level",
+        "options": [],
+        "query": "All : .*, INFO : INFO, WARN : WARN, ERROR : ERROR",
+        "skipUrlSync": false,
+        "type": "custom"
       }
     ]
   },
@@ -100,5 +161,5 @@
   "timezone": "browser",
   "title": "NexaPay Distributed Logs",
   "uid": "nexapay-logs",
-  "version": 3
+  "version": 4
 }
