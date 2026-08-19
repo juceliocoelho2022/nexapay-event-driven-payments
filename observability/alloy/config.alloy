@@ -7,8 +7,41 @@ loki.source.file "nexapay_services" {
     { __path__ = "/var/log/nexapay/auth/nexapay-auth-service.log", service_name = "nexapay-auth-service" },
   ]
 
-  forward_to = [loki.write.local.receiver]
+  forward_to = [loki.process.nexapay_json.receiver]
   tail_from_end = false
+}
+
+loki.process "nexapay_json" {
+  forward_to = [loki.write.local.receiver]
+
+  stage.json {
+    expressions = {
+      level          = "level",
+      service        = "service",
+      correlation_id = "correlationId",
+      logger_name    = "logger_name",
+      thread_name    = "thread_name",
+      message        = "message",
+    }
+  }
+
+  // Low-cardinality field: safe to index as a Loki label.
+  stage.labels {
+    values = {
+      level = "level",
+    }
+  }
+
+  // High-cardinality/request-scoped fields stay searchable without creating
+  // a new indexed stream for every request, logger or thread.
+  stage.structured_metadata {
+    values = {
+      correlation_id = "correlation_id",
+      logger_name     = "logger_name",
+      thread_name     = "thread_name",
+      service         = "service",
+    }
+  }
 }
 
 local.file_match "sprint7_validation" {
