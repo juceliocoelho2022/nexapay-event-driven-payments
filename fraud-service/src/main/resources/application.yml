@@ -29,9 +29,13 @@ spring:
 logging:
   file:
     name: ${NEXAPAY_LOG_DIR:logs}/nexapay-fraud-service.log
-  pattern:
-    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [%thread] %logger{36} [correlationId=%X{correlationId:-}] - %msg%n"
-    file: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [%thread] %logger{36} [correlationId=%X{correlationId:-}] - %msg%n"
+  structured:
+    format:
+      console: logstash
+      file: logstash
+    json:
+      add:
+        service: ${spring.application.name}
 
 management:
   endpoints:
