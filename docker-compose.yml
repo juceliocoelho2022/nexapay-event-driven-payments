@@ -179,7 +179,11 @@ services:
 
     volumes:
       - ./observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
-      - ./logs:/var/log/nexapay:ro
+      - ./payment-service/logs:/var/log/nexapay/payment:ro
+      - ./account-service/logs:/var/log/nexapay/account:ro
+      - ./ledger-service/logs:/var/log/nexapay/ledger:ro
+      - ./fraud-service/logs:/var/log/nexapay/fraud:ro
+      - ./auth-service/logs:/var/log/nexapay/auth:ro
       - nexapay_alloy_data:/var/lib/alloy/data
 
     depends_on:
