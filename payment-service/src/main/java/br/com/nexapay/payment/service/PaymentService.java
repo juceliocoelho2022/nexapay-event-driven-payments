@@ -13,11 +13,16 @@ import br.com.nexapay.payment.repository.PaymentRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
+import io.micrometer.tracing.propagation.Propagator;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -28,18 +33,24 @@ public class PaymentService {
     private final PaymentMapper paymentMapper;
     private final ObjectMapper objectMapper;
     private final MeterRegistry meterRegistry;
+    private final Tracer tracer;
+    private final Propagator propagator;
 
     public PaymentService(
             PaymentRepository paymentRepository,
             OutboxEventRepository outboxEventRepository,
             PaymentMapper paymentMapper,
             ObjectMapper objectMapper,
-            MeterRegistry meterRegistry) {
+            MeterRegistry meterRegistry,
+            Tracer tracer,
+            Propagator propagator) {
         this.paymentRepository = paymentRepository;
         this.outboxEventRepository = outboxEventRepository;
         this.paymentMapper = paymentMapper;
         this.objectMapper = objectMapper;
         this.meterRegistry = meterRegistry;
+        this.tracer = tracer;
+        this.propagator = propagator;
     }
 
     @Transactional
@@ -116,12 +127,16 @@ public class PaymentService {
             correlationId = eventId.toString();
         }
 
+        Map<String, String> traceContext = captureTraceContext();
+
         OutboxEvent outbox = new OutboxEvent(
                 eventId,
                 paymentId,
                 "PaymentCreated",
                 toJson(event),
                 correlationId,
+                traceContext.get("traceparent"),
+                traceContext.get("tracestate"),
                 false,
                 now
         );
@@ -130,6 +145,21 @@ public class PaymentService {
         meterRegistry.counter("nexapay.payment.created").increment();
 
         return paymentMapper.toResponse(payment);
+    }
+
+    private Map<String, String> captureTraceContext() {
+        Map<String, String> carrier = new LinkedHashMap<>();
+        Span currentSpan = tracer.currentSpan();
+
+        if (currentSpan != null) {
+            propagator.inject(
+                    currentSpan.context(),
+                    carrier,
+                    (target, key, value) -> target.put(key, value)
+            );
+        }
+
+        return carrier;
     }
 
     private String toJson(PaymentCreatedEvent event) {
