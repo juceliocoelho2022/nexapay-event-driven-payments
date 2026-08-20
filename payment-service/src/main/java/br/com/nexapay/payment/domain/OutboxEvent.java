@@ -24,6 +24,12 @@ public class OutboxEvent {
     @Column(name = "correlation_id", length = 128)
     private String correlationId;
 
+    @Column(name = "traceparent", length = 255)
+    private String traceParent;
+
+    @Column(name = "tracestate", columnDefinition = "text")
+    private String traceState;
+
     @Column(nullable = false)
     private boolean published;
 
@@ -43,7 +49,7 @@ public class OutboxEvent {
             String payload,
             boolean published,
             OffsetDateTime createdAt) {
-        this(id, aggregateId, eventType, payload, null, published, createdAt);
+        this(id, aggregateId, eventType, payload, null, null, null, published, createdAt);
     }
 
     public OutboxEvent(
@@ -54,11 +60,26 @@ public class OutboxEvent {
             String correlationId,
             boolean published,
             OffsetDateTime createdAt) {
+        this(id, aggregateId, eventType, payload, correlationId, null, null, published, createdAt);
+    }
+
+    public OutboxEvent(
+            UUID id,
+            UUID aggregateId,
+            String eventType,
+            String payload,
+            String correlationId,
+            String traceParent,
+            String traceState,
+            boolean published,
+            OffsetDateTime createdAt) {
         this.id = id;
         this.aggregateId = aggregateId;
         this.eventType = eventType;
         this.payload = payload;
         this.correlationId = correlationId;
+        this.traceParent = traceParent;
+        this.traceState = traceState;
         this.published = published;
         this.createdAt = createdAt;
     }
@@ -81,6 +102,14 @@ public class OutboxEvent {
 
     public String getCorrelationId() {
         return correlationId;
+    }
+
+    public String getTraceParent() {
+        return traceParent;
+    }
+
+    public String getTraceState() {
+        return traceState;
     }
 
     public boolean isPublished() {
