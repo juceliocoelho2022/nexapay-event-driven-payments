@@ -20,6 +20,8 @@ loki.process "nexapay_json" {
       level          = "level",
       service        = "service",
       correlation_id = "correlationId",
+      trace_id       = "traceId",
+      span_id        = "spanId",
       logger_name    = "logger_name",
       thread_name    = "thread_name",
       message        = "message",
@@ -35,6 +37,8 @@ loki.process "nexapay_json" {
   stage.structured_metadata {
     values = {
       correlation_id = "correlation_id",
+      trace_id       = "trace_id",
+      span_id        = "span_id",
       logger_name     = "logger_name",
       thread_name     = "thread_name",
       service         = "service",
