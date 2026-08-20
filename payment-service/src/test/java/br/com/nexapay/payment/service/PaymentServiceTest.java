@@ -7,6 +7,8 @@ import br.com.nexapay.payment.repository.OutboxEventRepository;
 import br.com.nexapay.payment.repository.PaymentRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.tracing.Tracer;
+import io.micrometer.tracing.propagation.Propagator;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -124,7 +126,9 @@ class PaymentServiceTest {
                 outboxEventRepository,
                 new PaymentMapper(),
                 new ObjectMapper().findAndRegisterModules(),
-                registry
+                registry,
+                Tracer.NOOP,
+                Propagator.NOOP
         );
     }
 
