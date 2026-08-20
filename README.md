@@ -19,7 +19,7 @@
   <img src="https://img.shields.io/badge/Apache%20Kafka-3.9.x-black" alt="Apache Kafka"/>
   <img src="https://img.shields.io/badge/Security-JWT-blueviolet" alt="JWT Security"/>
   <img src="https://img.shields.io/badge/Observability-Prometheus%20%7C%20Grafana%20%7C%20Loki-orange" alt="Observability"/>
-  <img src="https://img.shields.io/badge/Sprints-10%20conclu%C3%ADdas-success" alt="10 Sprints concluídas"/>
+  <img src="https://img.shields.io/badge/Sprints-11%20conclu%C3%ADdas-success" alt="11 Sprints concluídas"/>
 </p>
 
 ---
@@ -49,7 +49,7 @@ Sprint 7 — Observabilidade   ✅ Concluída
 Sprint 8 — API Gateway       ✅ Concluída
 Sprint 9 — Frontend          ✅ Concluída
 Sprint 10 — CI/CD e Cloud    ✅ Concluída
-Sprint 11 — Observabilidade  🚧 Em evolução
+Sprint 11 — Observabilidade  ✅ Concluída
 ```
 
 ---
@@ -714,13 +714,61 @@ powershell -ExecutionPolicy Bypass -File .\scripts\test-sprint7-observability.ps
 - [x] workflow de Container Release
 - [x] integração validada na `main`
 
-## Sprint 11 — Observabilidade avançada 🚧
+## Sprint 11 — Observabilidade avançada ✅
 
-- [ ] revisar e consolidar métricas operacionais
-- [ ] correlationId ponta a ponta
-- [ ] logs estruturados
-- [ ] dashboards operacionais finais
-- [ ] validação dos principais SLOs técnicos
+A Sprint 11 elevou a observabilidade do NexaPay com rastreamento distribuído, logs estruturados e acompanhamento de indicadores operacionais.
+
+- [x] revisar e consolidar métricas operacionais
+- [x] correlationId ponta a ponta
+- [x] propagação do correlationId via Transactional Outbox
+- [x] propagação do correlationId via Kafka
+- [x] fluxo distribuído Payment → Kafka → Fraud
+- [x] logs estruturados em JSON
+- [x] parsing JSON com Grafana Alloy
+- [x] structured metadata no Loki
+- [x] consulta distribuída por correlationId
+- [x] dashboard NexaPay Distributed Logs
+- [x] dashboard NexaPay Overview
+- [x] dashboard NexaPay Resilience
+- [x] dashboard NexaPay Technical SLOs
+- [x] disponibilidade por serviço
+- [x] taxa de erros HTTP 5xx
+- [x] latência HTTP
+- [x] backlog do Transactional Outbox
+- [x] métricas de retry e DLT Kafka
+- [x] validação dos principais SLOs técnicos
+
+### Fluxo distribuído observado
+
+```text
+Payment Service
+      |
+      v
+Transactional Outbox
+      |
+      v
+Apache Kafka
+      |
+      v
+Fraud Service
+      |
+      v
+Fraud Analysis
+```
+
+O mesmo `correlationId` é preservado durante o fluxo assíncrono, permitindo rastrear uma operação entre diferentes microsserviços com Alloy, Loki e Grafana.
+
+### Structured Logging
+
+Payment Service e Fraud Service utilizam logs estruturados em JSON com campos como `@timestamp`, `level`, `service`, `correlationId`, `logger_name`, `thread_name` e `message`.
+
+O Grafana Alloy realiza o parsing antes do envio ao Loki. Identificadores de alta cardinalidade, como `correlationId`, são mantidos como structured metadata.
+
+### SLOs técnicos
+
+O dashboard `NexaPay Technical SLOs` monitora disponibilidade, HTTP 5xx Error Rate, latência HTTP, backlog do Outbox, falhas/retries Kafka e recuperações via DLT.
+
+Os objetivos são referências técnicas para o ambiente de demonstração e portfólio, e não representam SLA contratual de produção.
 
 ---
 
