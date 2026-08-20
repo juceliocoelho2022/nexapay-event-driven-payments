@@ -1,0 +1,130 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "description": "Portfolio/local target: >= 99% of Prometheus scrapes successful over the selected window.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 99}]}
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0},
+      "id": 1,
+      "targets": [{"expr": "100 * avg(avg_over_time(up{job=\"nexapay-services\"}[$__range]))", "refId": "A"}],
+      "title": "Availability",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "description": "Portfolio/local target: HTTP 5xx error ratio below 1% over 5 minutes.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0},
+      "id": 2,
+      "targets": [{"expr": "100 * (sum(rate(http_server_requests_seconds_count{job=\"nexapay-services\",status=~\"5..\"}[5m])) or vector(0)) / clamp_min(sum(rate(http_server_requests_seconds_count{job=\"nexapay-services\"}[5m])), 0.000001)", "refId": "A"}],
+      "title": "HTTP 5xx Error Rate",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "description": "Portfolio/local target: mean HTTP latency below 500 ms over 5 minutes.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 500}]}
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 0},
+      "id": 3,
+      "targets": [{"expr": "1000 * sum(rate(http_server_requests_seconds_sum{job=\"nexapay-services\"}[5m])) / clamp_min(sum(rate(http_server_requests_seconds_count{job=\"nexapay-services\"}[5m])), 0.000001)", "refId": "A"}],
+      "title": "Mean HTTP Latency",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "description": "Operational target: outbox publisher batch backlog should normally return to zero.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 0},
+      "id": 4,
+      "targets": [{"expr": "sum(nexapay_outbox_batch_pending)", "refId": "A"}],
+      "title": "Outbox Pending",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 6},
+      "id": 5,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [{"expr": "100 * avg by (service) (avg_over_time(up{job=\"nexapay-services\"}[5m]))", "legendFormat": "{{service}}", "refId": "A"}],
+      "title": "Availability by Service",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "ms"}, "overrides": []},
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 6},
+      "id": 6,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [{"expr": "1000 * sum by (service) (rate(http_server_requests_seconds_sum{job=\"nexapay-services\"}[5m])) / clamp_min(sum by (service) (rate(http_server_requests_seconds_count{job=\"nexapay-services\"}[5m])), 0.000001)", "legendFormat": "{{service}}", "refId": "A"}],
+      "title": "Mean HTTP Latency by Service",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 15},
+      "id": 7,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {"expr": "sum by (service, topic) (increase(nexapay_kafka_delivery_failures_total[30m]))", "legendFormat": "delivery failures {{service}} / {{topic}}", "refId": "A"},
+        {"expr": "sum by (service, topic) (increase(nexapay_kafka_retry_attempts_total[30m]))", "legendFormat": "retries {{service}} / {{topic}}", "refId": "B"}
+      ],
+      "title": "Kafka Failures and Retries (30m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 15},
+      "id": 8,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {"expr": "sum by (service, event_type) (increase(nexapay_outbox_publish_failures_total[30m]))", "legendFormat": "publish failures {{service}} / {{event_type}}", "refId": "A"},
+        {"expr": "sum by (service, source_topic) (increase(nexapay_kafka_dlt_published_total[30m]))", "legendFormat": "DLT {{service}} / {{source_topic}}", "refId": "B"}
+      ],
+      "title": "Outbox Failures and DLT Recoveries (30m)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 41,
+  "tags": ["nexapay", "slo", "reliability", "prometheus"],
+  "templating": {"list": []},
+  "time": {"from": "now-30m", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "NexaPay Technical SLOs",
+  "uid": "nexapay-technical-slos",
+  "version": 1
+}

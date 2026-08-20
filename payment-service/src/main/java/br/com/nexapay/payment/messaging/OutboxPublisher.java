@@ -1,16 +1,21 @@
 package br.com.nexapay.payment.messaging;
 
 import br.com.nexapay.payment.domain.OutboxEvent;
+import br.com.nexapay.payment.observability.CorrelationIdFilter;
 import br.com.nexapay.payment.repository.OutboxEventRepository;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.header.internals.RecordHeader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -47,13 +52,28 @@ public class OutboxPublisher {
         pendingBatchSize.set(events.size());
 
         for (OutboxEvent event : events) {
+            String correlationId = event.getCorrelationId();
+
+            if (correlationId != null && !correlationId.isBlank()) {
+                MDC.put(CorrelationIdFilter.MDC_KEY, correlationId);
+            }
+
             try {
+                ProducerRecord<String, String> record = new ProducerRecord<>(
+                        KafkaTopics.PAYMENT_CREATED,
+                        event.getAggregateId().toString(),
+                        event.getPayload()
+                );
+
+                if (correlationId != null && !correlationId.isBlank()) {
+                    record.headers().add(new RecordHeader(
+                            CorrelationIdFilter.HEADER_NAME,
+                            correlationId.getBytes(StandardCharsets.UTF_8)
+                    ));
+                }
+
                 kafkaTemplate
-                        .send(
-                                KafkaTopics.PAYMENT_CREATED,
-                                event.getAggregateId().toString(),
-                                event.getPayload()
-                        )
+                        .send(record)
                         .get(10, TimeUnit.SECONDS);
 
                 event.markPublished();
@@ -80,6 +100,8 @@ public class OutboxPublisher {
                         ex
                 );
                 break;
+            } finally {
+                MDC.remove(CorrelationIdFilter.MDC_KEY);
             }
         }
     }

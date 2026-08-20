@@ -33,6 +33,13 @@ spring:
 logging:
   file:
     name: ${NEXAPAY_LOG_DIR:logs}/nexapay-payment-service.log
+  structured:
+    format:
+      console: logstash
+      file: logstash
+    json:
+      add:
+        service: ${spring.application.name}
 
 management:
   endpoints:
