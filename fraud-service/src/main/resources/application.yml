@@ -20,6 +20,8 @@ spring:
 
   kafka:
     bootstrap-servers: localhost:9092
+    listener:
+      observation-enabled: true
     consumer:
       group-id: nexapay-fraud-service
       auto-offset-reset: earliest
@@ -46,6 +48,8 @@ management:
     tags:
       application: ${spring.application.name}
   tracing:
+    propagation:
+      type: w3c
     sampling:
       probability: ${NEXAPAY_TRACING_SAMPLING_PROBABILITY:1.0}
   otlp:
