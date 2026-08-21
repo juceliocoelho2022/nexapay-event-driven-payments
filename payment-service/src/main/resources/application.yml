@@ -90,6 +90,7 @@ management:
 nexapay:
   outbox:
     fixed-delay-ms: 2000
+    kafka-publish-timeout: ${NEXAPAY_KAFKA_PUBLISH_TIMEOUT:10s}
   security:
     jwt:
       issuer: https://nexapay.local/auth
