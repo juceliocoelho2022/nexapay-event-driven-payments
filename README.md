@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  Plataforma backend de pagamentos construída com Java 21, Spring Boot, Apache Kafka, PostgreSQL, Flyway, Docker Compose, Transactional Outbox, Spring Security e observabilidade com Prometheus, Grafana, Loki e Alloy.
+  Plataforma de pagamentos distribuída construída com Java 21, Spring Boot, Apache Kafka, PostgreSQL, Transactional Outbox, Spring Security e observabilidade com Prometheus, Grafana, Loki, Alloy, OpenTelemetry e Grafana Tempo.
 </p>
 
 <p align="center">
@@ -18,38 +18,31 @@
   <img src="https://img.shields.io/badge/PostgreSQL-17-blue" alt="PostgreSQL 17"/>
   <img src="https://img.shields.io/badge/Apache%20Kafka-3.9.x-black" alt="Apache Kafka"/>
   <img src="https://img.shields.io/badge/Security-JWT-blueviolet" alt="JWT Security"/>
-  <img src="https://img.shields.io/badge/Observability-Prometheus%20%7C%20Grafana%20%7C%20Loki-orange" alt="Observability"/>
-  <img src="https://img.shields.io/badge/Sprints-11%20conclu%C3%ADdas-success" alt="11 Sprints concluídas"/>
+  <img src="https://img.shields.io/badge/Observability-Prometheus%20%7C%20Loki%20%7C%20Tempo-orange" alt="Observability"/>
+  <img src="https://img.shields.io/badge/Sprint-12%20em%20evolu%C3%A7%C3%A3o-yellow" alt="Sprint 12 em evolução"/>
 </p>
 
 ---
 
 ## Sobre o projeto
 
-O **NexaPay** é um projeto de portfólio de engenharia de software backend Java voltado a sistemas financeiros distribuídos e orientados a eventos.
-
-A implementação atual possui cinco microsserviços Maven independentes:
-
-- `payment-service` — criação e consulta de pagamentos PIX;
-- `account-service` — contas, saldo, crédito e débito;
-- `ledger-service` — histórico financeiro consumido via Kafka;
-- `fraud-service` — análise assíncrona de risco;
-- `auth-service` — cadastro, autenticação, emissão de JWT e autorização por roles/permissions.
+O **NexaPay** é um projeto de portfólio de engenharia de software backend Java voltado a sistemas financeiros distribuídos e orientados a eventos. A arquitetura explora comunicação síncrona e assíncrona, segurança, resiliência, CI/CD e os três pilares de observabilidade: **métricas, logs e traces**.
 
 ### Status
 
 ```text
-Sprint 1 — Payment Service   ✅ Concluída
-Sprint 2 — Account Service   ✅ Concluída
-Sprint 3 — Ledger Service    ✅ Concluída
-Sprint 4 — Fraud Service     ✅ Concluída
-Sprint 5 — Segurança         ✅ Concluída
-Sprint 6 — Resiliência       ✅ Concluída
-Sprint 7 — Observabilidade   ✅ Concluída
-Sprint 8 — API Gateway       ✅ Concluída
-Sprint 9 — Frontend          ✅ Concluída
-Sprint 10 — CI/CD e Cloud    ✅ Concluída
-Sprint 11 — Observabilidade  ✅ Concluída
+Sprint 1  — Payment Service          ✅ Concluída
+Sprint 2  — Account Service          ✅ Concluída
+Sprint 3  — Ledger Service           ✅ Concluída
+Sprint 4  — Fraud Service            ✅ Concluída
+Sprint 5  — Segurança                ✅ Concluída
+Sprint 6  — Resiliência              ✅ Concluída
+Sprint 7  — Observabilidade          ✅ Concluída
+Sprint 8  — API Gateway              ✅ Concluída
+Sprint 9  — Frontend                 ✅ Concluída
+Sprint 10 — CI/CD e Cloud            ✅ Concluída
+Sprint 11 — Observabilidade avançada ✅ Concluída
+Sprint 12 — Production Hardening     🚧 Em evolução
 ```
 
 ---
@@ -57,200 +50,137 @@ Sprint 11 — Observabilidade  ✅ Concluída
 ## Galeria do projeto
 
 ### Visão geral
-
-<p align="center">
-  <img src="docs/images/NEXA01.png" alt="NexaPay visão geral" width="900"/>
-</p>
+<p align="center"><img src="docs/images/NEXA01.png" alt="NexaPay visão geral" width="900"/></p>
 
 ### Stack tecnológica
-
-<p align="center">
-  <img src="docs/images/NEXA02.png" alt="NexaPay stack tecnológica" width="900"/>
-</p>
+<p align="center"><img src="docs/images/NEXA02.png" alt="NexaPay stack tecnológica" width="900"/></p>
 
 ### Arquitetura e fluxo de eventos
-
-<p align="center">
-  <img src="docs/images/NEXA03.png" alt="NexaPay arquitetura e fluxo de eventos" width="900"/>
-</p>
+<p align="center"><img src="docs/images/NEXA03.png" alt="NexaPay arquitetura" width="900"/></p>
 
 ### Evolução das sprints
+<p align="center"><img src="docs/images/NEXA04.png" alt="NexaPay evolução das sprints" width="900"/></p>
 
-<p align="center">
-  <img src="docs/images/NEXA04.png" alt="NexaPay evolução das sprints" width="900"/>
-</p>
+### Frontend
+<p align="center"><img src="docs/images/NEXA05.png" alt="NexaPay frontend" width="900"/></p>
 
-### Frontend e experiência do usuário
-
-<p align="center">
-  <img src="docs/images/NEXA05.png" alt="NexaPay frontend" width="900"/>
-</p>
-
-### Ambiente e integração
-
-<p align="center">
-  <img src="docs/images/NEXA06.png" alt="NexaPay ambiente integrado" width="900"/>
-</p>
+### Ambiente integrado
+<p align="center"><img src="docs/images/NEXA06.png" alt="NexaPay ambiente integrado" width="900"/></p>
 
 ### Containers Docker
-
-<p align="center">
-  <img src="docs/images/nexaDocker.png" alt="NexaPay containers Docker" width="900"/>
-</p>
+<p align="center"><img src="docs/images/nexaDocker.png" alt="NexaPay containers Docker" width="900"/></p>
 
 ---
 
-## Arquitetura implementada
+## Arquitetura
 
 ```text
-                              ┌────────────────────┐
-                              │      Cliente       │
-                              └─────────┬──────────┘
-                                        │ login / JWT
-                                        v
-                              ┌────────────────────┐
-                              │    Auth Service    │
-                              │       :8085        │
-                              └─────────┬──────────┘
-                                        │ Bearer JWT
-                    ┌───────────────────┼───────────────────┐
-                    │                   │                   │
-                    v                   v                   v
-          ┌────────────────┐  ┌────────────────┐  ┌────────────────┐
-          │ Payment :8081  │  │ Account :8082  │  │ Ledger :8083   │
-          └───────┬────────┘  └───────┬────────┘  └───────┬────────┘
-                  │                   │                   │
-        PostgreSQL :5435    PostgreSQL :5436    PostgreSQL :5437
-                  │                   │                   ▲
-                  │ Outbox            │ Outbox            │
-                  v                   v                   │
-                Kafka               Kafka                │
-                  │          ┌────────┴────────┐          │
-                  │          │                 │          │
-                  │          v                 v          │
-                  │   account.credited  account.debited ─┘
-                  │          │                 │
-                  │          └──── retry / DLT ┘
-                  v
-          payment.created
-                  │
-                  │ retry / DLT
-                  v
-          ┌────────────────┐
-          │  Fraud :8084   │
-          └───────┬────────┘
-                  │
-        PostgreSQL :5438
+Cliente
+  |
+  v
+API Gateway :8080
+  |
+  +-------------------+
+  |                   |
+  v                   v
+Auth :8085        Payment :8081
+                      |
+                 PostgreSQL
+                      |
+              Transactional Outbox
+                      |
+                      v
+                 Apache Kafka
+                      |
+                      v
+                 Fraud :8084
 
-          Auth PostgreSQL :5439
+Account :8082 ---> Kafka ---> Ledger :8083
 
-Observabilidade:
-  Serviços /actuator/prometheus -> Prometheus :9090 -> Grafana :3000
-  logs/*.log -> Grafana Alloy :12345 -> Loki :3100 -> Grafana :3000
+Observabilidade
+  Metrics -> Micrometer -> Prometheus -> Grafana
+  Logs    -> Structured JSON -> Alloy -> Loki -> Grafana
+  Traces  -> OpenTelemetry / OTLP -> Tempo -> Grafana
 ```
-
-> O arquivo `docs/images/nexapay-architecture.png` representa a evolução visual do projeto. O diagrama textual acima descreve a arquitetura implementada.
 
 ### Semântica de eventos
 
-Os produtores usam **Transactional Outbox** para persistir alteração de domínio e registro de evento na mesma transação local.
-
-A publicação e o consumo Kafka possuem semântica **at-least-once**. O envio ao Kafka e a marcação do Outbox como publicado não formam uma única transação distribuída, e a recuperação via DLT também não é uma transação global com o commit do offset.
-
-Por isso, a arquitetura assume que consumidores devem ser idempotentes e tolerar reprocessamento. O projeto **não reivindica exactly-once**.
+Os produtores usam **Transactional Outbox** para persistir alteração de domínio e evento na mesma transação local. A publicação e o consumo Kafka trabalham com semântica **at-least-once**; por isso, os consumidores são projetados para idempotência e reprocessamento. O projeto não reivindica exactly-once global.
 
 ---
 
 ## Stack
 
 ### Backend
-
 - Java 21
 - Spring Boot 3.5.16
 - Spring Web
 - Spring Data JPA / Hibernate
-- Bean Validation
 - Spring Security
 - OAuth2 Resource Server JWT
-- Maven multi-module
+- Maven
 
 ### Dados e mensageria
-
 - PostgreSQL 17
 - Flyway
 - Apache Kafka 3.9.x
 - Transactional Outbox
 - Retry com Spring Kafka
 - Dead Letter Topics
-- bancos dedicados por serviço
 
 ### Observabilidade
-
 - Spring Boot Actuator
 - Micrometer
 - Prometheus
 - Grafana
 - Loki
 - Grafana Alloy
-- dashboards provisionados automaticamente
-- métricas JVM/HTTP e métricas de domínio/resiliência do NexaPay
-- logs centralizados dos microsserviços
+- OpenTelemetry
+- OTLP
+- Grafana Tempo
+- TraceQL
+- logs estruturados em JSON
+- correlationId ponta a ponta
+- métricas JVM, HTTP, Outbox, Kafka e fraude
 
-### Testes
-
+### Testes e infraestrutura
 - JUnit 5
 - Mockito
 - Spring Boot Test
 - Spring Security Test
 - MockMvc
 - Testcontainers
-- testes de concorrência com PostgreSQL real
-- testes E2E de retry, DLT e replay controlado
-- validação automatizada de Prometheus, Grafana, Loki e Alloy
-
-### Infraestrutura
-
-- Docker
-- Docker Compose
-- Spring Boot Actuator
+- Docker / Docker Compose
 - GitHub Actions
-- builds de imagens Docker
-- pipeline CI/CD
+- CI/CD e build de imagens Docker
 
 ---
 
-# Serviços
+## Serviços
 
-## Payment Service — Sprint 1 + hardening Sprint 6/7 ✅
+| Serviço | Porta | Responsabilidade |
+|---|---:|---|
+| API Gateway | 8080 | entrada, roteamento e segurança |
+| Payment Service | 8081 | criação e consulta de pagamentos PIX |
+| Account Service | 8082 | contas, crédito, débito e saldo |
+| Ledger Service | 8083 | histórico financeiro via eventos Kafka |
+| Fraud Service | 8084 | análise assíncrona de risco |
+| Auth Service | 8085 | autenticação, JWT, roles e permissions |
 
-**Aplicação:** `8081`  
-**PostgreSQL:** `5435`  
-**Banco:** `nexapay_payments`
+### Payment Service
 
 ```http
 POST /api/v1/payments/pix
 GET  /api/v1/payments/{id}
 ```
 
-A criação exige `Idempotency-Key` e autorização `PAYMENT_CREATE`. A consulta exige `PAYMENT_READ`.
-
-O serviço grava pagamento + Outbox Event na mesma operação de negócio e publica:
+A criação utiliza `Idempotency-Key`, Transactional Outbox e publica o evento:
 
 ```text
 nexapay.payment.created.v1
 ```
 
-Na Sprint 6, a idempotência foi fortalecida para concorrência. A criação usa reserva atômica no PostgreSQL com `INSERT ... ON CONFLICT DO NOTHING`, apoiada pela constraint única de `idempotency_key`. Chamadas simultâneas com a mesma chave convergem para um único pagamento persistido, comportamento coberto por teste concorrente com Testcontainers.
-
-Na Sprint 7, o serviço passou a expor métricas Prometheus e métricas do Outbox, incluindo lote pendente, publicações e falhas de publicação.
-
----
-
-## Account Service — Sprint 2 + observabilidade Sprint 7 ✅
-
-**Aplicação:** `8082`  
-**PostgreSQL:** `5436`  
-**Banco:** `nexapay_accounts`
+### Account Service
 
 ```http
 POST /api/v1/accounts
@@ -259,32 +189,9 @@ POST /api/v1/accounts/{id}/credit
 POST /api/v1/accounts/{id}/debit
 ```
 
-Permissões:
+Usa `BigDecimal`, transações, `PESSIMISTIC_WRITE` e publica eventos de crédito e débito via Outbox/Kafka.
 
-```text
-GET                         ACCOUNT_READ
-POST /accounts              ACCOUNT_WRITE
-POST /credit                ACCOUNT_WRITE
-POST /debit                 ACCOUNT_WRITE
-```
-
-Recursos principais:
-
-- `BigDecimal` para valores monetários;
-- transações Spring;
-- `PESSIMISTIC_WRITE` para operações de saldo;
-- Transactional Outbox;
-- publicação de `nexapay.account.credited.v1` e `nexapay.account.debited.v1`;
-- métricas Prometheus e métricas do Outbox.
-
----
-
-## Ledger Service — Sprint 3 + hardening Sprint 6/7 ✅
-
-**Aplicação:** `8083`  
-**PostgreSQL:** `5437`  
-**Banco:** `nexapay_ledger`  
-**Kafka group:** `nexapay-ledger-service`
+### Ledger Service
 
 Consome:
 
@@ -293,41 +200,9 @@ nexapay.account.credited.v1
 nexapay.account.debited.v1
 ```
 
-DLTs:
+Possui retry, DLT, replay protection e idempotência.
 
-```text
-nexapay.account.credited.v1.DLT
-nexapay.account.debited.v1.DLT
-```
-
-Endpoint protegido:
-
-```http
-GET /api/v1/ledger/accounts/{accountId}   -> LEDGER_READ
-```
-
-Recursos de resiliência:
-
-- `DefaultErrorHandler`;
-- `FixedBackOff` de 1 segundo;
-- política configurada com 2 retries após a tentativa inicial;
-- `DeadLetterPublishingRecoverer`;
-- DLT por tópico original, preservando a partição;
-- payload JSON inválido tratado como não-retryable e encaminhado diretamente para recuperação/DLT;
-- proteção contra replay concorrente por `eventId` com operação atômica no PostgreSQL;
-- validação E2E com indisponibilidade real do PostgreSQL;
-- métricas de falhas de entrega, retries, publicação em DLT e falhas de recuperação.
-
-> Não é um ledger contábil double-entry; registra lançamentos derivados dos eventos do Account Service.
-
----
-
-## Fraud Service — Sprint 4 + hardening Sprint 6/7 ✅
-
-**Aplicação:** `8084`  
-**PostgreSQL:** `5438`  
-**Banco:** `nexapay_fraud`  
-**Kafka group:** `nexapay-fraud-service`
+### Fraud Service
 
 Consome:
 
@@ -335,199 +210,173 @@ Consome:
 nexapay.payment.created.v1
 ```
 
-DLT:
-
-```text
-nexapay.payment.created.v1.DLT
-```
-
-Motor de regras atual:
-
 ```text
 Valor < R$ 5.000                 -> APPROVED | score 20
 R$ 5.000 <= valor < R$ 10.000   -> REVIEW   | score 70
 Valor >= R$ 10.000              -> BLOCKED  | score 95
 ```
 
-Endpoint protegido:
+Possui retry/DLT, idempotência, métricas de fraude e tracing do consumer Kafka.
 
-```http
-GET /api/v1/fraud/payments/{paymentId}   -> FRAUD_READ
-```
-
-Recursos de resiliência e observabilidade:
-
-- mesma política de retry/DLT do Ledger;
-- payload inválido classificado como não-retryable;
-- replay concorrente protegido por `eventId` no PostgreSQL;
-- teste concorrente de idempotência;
-- teste E2E de falha do PostgreSQL seguido de DLT;
-- replay controlado após recuperação do banco;
-- métricas Kafka de falha/retry/DLT;
-- métricas das decisões de fraude.
-
-`ROLE_USER` não recebe `FRAUD_READ`; a permissão fica reservada ao `ROLE_ADMIN` no modelo atual.
-
-> A decisão de fraude ainda não altera automaticamente o status do Payment Service.
-
----
-
-## Auth Service — Sprint 5 + observabilidade Sprint 7 ✅
-
-**Aplicação:** `8085`  
-**PostgreSQL:** `5439`  
-**Banco:** `nexapay_auth`
-
-Endpoints públicos:
+### Auth Service
 
 ```http
 POST /api/v1/auth/register
 POST /api/v1/auth/login
-GET  /actuator/health
-GET  /actuator/info
-GET  /actuator/prometheus
+GET  /api/v1/auth/me
 ```
 
-Endpoint autenticado:
-
-```http
-GET /api/v1/auth/me   -> AUTH_SELF_READ
-```
-
-### Recursos implementados
-
-- cadastro de usuário;
-- normalização de e-mail;
-- senha armazenada com `DelegatingPasswordEncoder` / bcrypt;
-- roles `ROLE_USER` e `ROLE_ADMIN`;
-- permissions persistidas em PostgreSQL;
-- emissão de JWT com `sub`, `email`, `roles` e `permissions`;
-- tokens com expiração de 3600 segundos;
-- issuer `https://nexapay.local/auth`;
-- Resource Server JWT nos serviços protegidos;
-- autorização com `@PreAuthorize`;
-- métricas Prometheus via Actuator/Micrometer.
-
-### JWT atual
-
-A Sprint 5 usa **HS256 com segredo compartilhado** entre Auth e Resource Servers.
-
-Isso simplifica o ambiente local, mas não é o modelo ideal para produção: um serviço com o segredo de verificação também possui material suficiente para assinar tokens.
-
-Uma evolução recomendada é assinatura assimétrica, mantendo a chave privada somente no Auth Service e distribuindo somente chave pública/JWK aos Resource Servers.
+Implementa Spring Security, JWT, roles, permissions e Resource Server nos serviços protegidos.
 
 ---
 
-# Sprint 6 — Resiliência
+# Sprint 11 — Observabilidade avançada ✅
 
-A Sprint 6 adiciona recuperação explícita para consumidores Kafka e fortalece idempotência sob concorrência.
+A Sprint 11 consolidou métricas, logs estruturados, correlationId e SLOs técnicos.
 
-### Política Kafka
-
-```text
-Tentativa inicial
-      ↓ falha retriable
-Retry 1 — backoff 1s
-      ↓ falha
-Retry 2 — backoff 1s
-      ↓ falha
-Dead Letter Topic
-```
-
-`max-retries=2` representa duas novas entregas após a tentativa inicial. Payloads classificados como inválidos não entram nessa sequência de retries.
-
-### DLT como quarentena
-
-A DLT é tratada como registro terminal de quarentena. Não existe consumer automático que republique indefinidamente mensagens problemáticas.
-
-O utilitário:
-
-```text
-scripts/replay-dlt.ps1
-```
-
-seleciona explicitamente uma mensagem por marcador único. O comportamento padrão é **dry-run**; a republicação exige `-Replay`.
+- [x] correlationId ponta a ponta
+- [x] propagação via Transactional Outbox e Kafka
+- [x] fluxo Payment → Kafka → Fraud
+- [x] logs estruturados em JSON
+- [x] parsing com Grafana Alloy
+- [x] structured metadata no Loki
+- [x] dashboard NexaPay Distributed Logs
+- [x] dashboard NexaPay Overview
+- [x] dashboard NexaPay Resilience
+- [x] dashboard NexaPay Technical SLOs
+- [x] disponibilidade por serviço
+- [x] HTTP 5xx Error Rate
+- [x] latência HTTP
+- [x] backlog do Outbox
+- [x] métricas de retry e DLT Kafka
 
 ---
 
-# Sprint 7 — Observabilidade
+# Sprint 12 — Production Hardening e Distributed Tracing 🚧
 
-A Sprint 7 adiciona uma camada operacional completa sobre os cinco microsserviços.
+A Sprint 12 evolui o NexaPay em direção a um ambiente mais próximo de produção, com foco em **distributed tracing**, diagnóstico de requisições e propagação de contexto através de comunicação síncrona e assíncrona.
 
-### Métricas
+## Distributed Tracing
 
-Cada serviço expõe:
+O ambiente utiliza **Grafana Tempo** para armazenamento e consulta de traces distribuídos. A instrumentação permite acompanhar uma operação desde a entrada pelo API Gateway até o processamento assíncrono realizado pelo consumidor Kafka no Fraud Service.
 
-```http
-GET /actuator/prometheus
-```
-
-O Prometheus coleta os cinco serviços e adiciona a tag `application` para identificar a origem das séries. Além das métricas padrão de JVM, processo e HTTP, o NexaPay possui métricas próprias para Outbox, decisões de fraude e resiliência Kafka.
-
-### Retry e DLT
-
-Ledger e Fraud registram métricas para:
+### Fluxo validado
 
 ```text
-nexapay.kafka.delivery.failures
-nexapay.kafka.retry.attempts
-nexapay.kafka.dlt.published
-nexapay.kafka.dlt.publish.failures
+Client
+  |
+  v
+API Gateway
+  | HTTP POST
+  v
+Payment Service
+  |
+  +-- POST /api/v1/payments/pix
+  |
+  +-- Transactional Outbox
+  |
+  +-- outbox publish PaymentCreated
+  |
+  +-- nexapay.payment.created.v1 send
+          |
+          v
+       Apache Kafka
+          |
+          v
+       Fraud Service
+          |
+          +-- nexapay.payment.created.v1 receive
 ```
 
-### Logs centralizados
+### Evidência de tracing ponta a ponta
 
-Os serviços gravam arquivos em `logs/`. O Grafana Alloy coleta esses arquivos e envia para o Loki. O Grafana usa Loki como datasource para consulta centralizada.
+Foi validado no Grafana Tempo que uma operação PIX atravessa os seguintes componentes dentro da árvore de spans:
 
-### Dashboards provisionados
+- [x] API Gateway
+- [x] filtros Spring Security
+- [x] Payment Service
+- [x] `POST /api/v1/payments/pix`
+- [x] autenticação Bearer Token
+- [x] autorização do método
+- [x] Transactional Outbox
+- [x] `outbox publish PaymentCreated`
+- [x] producer Kafka `nexapay.payment.created.v1 send`
+- [x] propagação de contexto pelo Kafka
+- [x] Fraud Service
+- [x] consumer Kafka `nexapay.payment.created.v1 receive`
+
+Exemplo conceitual da árvore observada:
 
 ```text
-NexaPay Overview
-NexaPay Resilience
-NexaPay Logs
+nexapay-gateway-service
+└── http post
+    └── nexapay-payment-service
+        └── http post /api/v1/payments/pix
+            ├── security filterchain
+            ├── authenticate bearer token
+            ├── secured request
+            ├── authorize method
+            ├── outbox publish PaymentCreated
+            └── nexapay.payment.created.v1 send
+                └── nexapay-fraud-service
+                    └── nexapay.payment.created.v1 receive
 ```
 
-A configuração é versionada em `observability/` e provisionada automaticamente pelo Docker Compose.
+A validação comprova propagação de contexto através de duas fronteiras diferentes:
+
+```text
+HTTP
+Gateway -> Payment
+
+Kafka
+Payment -> Fraud
+```
+
+### Grafana Tempo e OTLP
+
+```text
+Grafana          localhost:3000
+Tempo API        localhost:3200
+OTLP gRPC        localhost:4317
+OTLP HTTP        localhost:4318
+```
+
+O datasource `Tempo` permite explorar traces e executar consultas com **TraceQL**.
+
+Exemplo por serviço:
+
+```traceql
+{ resource.service.name = "nexapay-gateway-service" }
+```
+
+Exemplo para localizar o consumer Kafka:
+
+```traceql
+{ name = "nexapay.payment.created.v1 receive" }
+```
+
+> Em uma busca por span filho, o resultado pode ser apresentado pelo span raiz do trace. O consumer Kafka pode então ser visualizado dentro da waterfall/árvore de spans do mesmo Trace ID.
+
+### Três pilares de observabilidade
+
+```text
+Metrics
+Services -> Micrometer -> Prometheus -> Grafana
+
+Logs
+Services -> Structured JSON -> Alloy -> Loki -> Grafana
+
+Traces
+Services -> OpenTelemetry / OTLP -> Tempo -> Grafana
+```
+
+Com essa evolução, o NexaPay permite correlacionar comportamento operacional, logs estruturados e execução distribuída entre microsserviços.
 
 ---
 
-# Matriz de autorização
+## Como executar
 
-```text
-Endpoint                                      Permission
-POST /api/v1/payments/pix                     PAYMENT_CREATE
-GET  /api/v1/payments/{id}                    PAYMENT_READ
-POST /api/v1/accounts                         ACCOUNT_WRITE
-POST /api/v1/accounts/{id}/credit             ACCOUNT_WRITE
-POST /api/v1/accounts/{id}/debit              ACCOUNT_WRITE
-GET  /api/v1/accounts/{id}                    ACCOUNT_READ
-GET  /api/v1/ledger/accounts/{accountId}      LEDGER_READ
-GET  /api/v1/fraud/payments/{paymentId}       FRAUD_READ
-GET  /api/v1/auth/me                          AUTH_SELF_READ
-```
-
-### ROLE_USER
-
-```text
-AUTH_SELF_READ
-PAYMENT_READ
-PAYMENT_CREATE
-ACCOUNT_READ
-ACCOUNT_WRITE
-LEDGER_READ
-```
-
-### ROLE_ADMIN
-
-Recebe todas as permissões atuais, incluindo `FRAUD_READ`.
-
-> A autorização atual é por endpoint/permission. Ainda não existe object-level authorization que garanta, por exemplo, que um usuário consulte somente a própria conta ou os próprios pagamentos.
-
----
-
-# Como executar
-
-## Pré-requisitos
+### Pré-requisitos
 
 - Java 21
 - Maven
@@ -535,18 +384,10 @@ Recebe todas as permissões atuais, incluindo `FRAUD_READ`.
 - Git
 
 ```powershell
-java -version
-mvn -version
-docker --version
-docker compose version
-git --version
-```
-
-## Infraestrutura
-
-```powershell
 docker compose up -d
 ```
+
+### Infraestrutura local
 
 ```text
 Kafka                 localhost:9092
@@ -559,216 +400,46 @@ Prometheus            localhost:9090
 Grafana               localhost:3000
 Loki                  localhost:3100
 Grafana Alloy         localhost:12345
+Tempo API             localhost:3200
+OTLP gRPC             localhost:4317
+OTLP HTTP             localhost:4318
 ```
 
-Grafana local:
-
-```text
-usuário: admin
-senha:   admin
-```
-
-## Aplicações
-
-Em terminais separados:
+### Health checks
 
 ```powershell
-mvn -pl payment-service spring-boot:run
-mvn -pl account-service spring-boot:run
-mvn -pl ledger-service spring-boot:run
-mvn -pl fraud-service spring-boot:run
-mvn -pl auth-service spring-boot:run
+Invoke-RestMethod http://localhost:8080/actuator/health
+Invoke-RestMethod http://localhost:8084/actuator/health
+Invoke-RestMethod http://localhost:8085/actuator/health
 ```
 
+Resultado esperado:
+
 ```text
-Payment Service   http://localhost:8081
-Account Service   http://localhost:8082
-Ledger Service    http://localhost:8083
-Fraud Service     http://localhost:8084
-Auth Service      http://localhost:8085
+status
+------
+UP
 ```
 
 ---
 
-# Testes
-
-Reactor completo:
+## Testes
 
 ```powershell
 mvn clean test
 ```
 
-Validação automatizada da Sprint 6:
+Validação de resiliência:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\test-sprint6-resilience.ps1
 ```
 
-Validação automatizada da Sprint 7:
+Validação de observabilidade:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\test-sprint7-observability.ps1
 ```
-
----
-
-# Roadmap
-
-## Sprint 1 — Payment Service ✅
-
-- [x] API REST PIX
-- [x] PostgreSQL/Flyway
-- [x] Idempotency-Key
-- [x] Transactional Outbox
-- [x] Kafka
-- [x] testes
-
-## Sprint 2 — Account Service ✅
-
-- [x] contas e saldo
-- [x] crédito/débito
-- [x] pessimistic locking
-- [x] Transactional Outbox
-- [x] Kafka
-- [x] concorrência transacional
-
-## Sprint 3 — Ledger Service ✅
-
-- [x] Kafka Consumer
-- [x] histórico financeiro
-- [x] replay protection
-- [x] paginação
-- [x] testes
-
-## Sprint 4 — Fraud Service ✅
-
-- [x] Kafka Consumer de pagamentos
-- [x] regras de risco
-- [x] risk score
-- [x] persistência
-- [x] API de consulta
-- [x] E2E Payment -> Kafka -> Fraud
-
-## Sprint 5 — Segurança ✅
-
-- [x] Auth Service
-- [x] cadastro/login
-- [x] password hashing
-- [x] Spring Security
-- [x] JWT
-- [x] roles
-- [x] permissions
-- [x] Resource Server nos serviços REST
-- [x] `401` / `403`
-- [x] testes de autorização
-- [x] E2E autenticado
-
-## Sprint 6 — Resiliência ✅
-
-- [x] Retry
-- [x] Dead Letter Topic
-- [x] estratégia de reprocessamento controlado
-- [x] tratamento de mensagens inválidas
-- [x] fortalecimento da idempotência concorrente
-- [x] testes E2E de falha de banco
-- [x] replay DLT após recuperação
-
-## Sprint 7 — Observabilidade ✅
-
-- [x] Micrometer / Actuator Prometheus
-- [x] Prometheus com cinco targets
-- [x] Grafana
-- [x] métricas customizadas de Outbox
-- [x] métricas de retry/DLT
-- [x] métricas de fraude
-- [x] Loki
-- [x] Grafana Alloy
-- [x] logs centralizados
-- [x] dashboards Overview, Resilience e Logs
-- [x] validação automatizada do stack
-
-## Sprint 8 — API Gateway ✅
-
-- [x] Spring Cloud Gateway
-- [x] roteamento
-- [x] autenticação centralizada
-- [x] Rate Limiting
-
-## Sprint 9 — Frontend ✅
-
-- [x] React
-- [x] Dashboard
-- [x] pagamentos
-- [x] contas
-- [x] movimentações
-- [x] decisões de fraude
-
-## Sprint 10 — CI/CD e Cloud ✅
-
-- [x] GitHub Actions
-- [x] pipeline backend Java 21/Maven
-- [x] pipeline frontend React/TypeScript
-- [x] validação Docker Compose local e cloud-ready
-- [x] build da imagem do frontend
-- [x] build das imagens Java dos microsserviços
-- [x] workflow de Container Release
-- [x] integração validada na `main`
-
-## Sprint 11 — Observabilidade avançada ✅
-
-A Sprint 11 elevou a observabilidade do NexaPay com rastreamento distribuído, logs estruturados e acompanhamento de indicadores operacionais.
-
-- [x] revisar e consolidar métricas operacionais
-- [x] correlationId ponta a ponta
-- [x] propagação do correlationId via Transactional Outbox
-- [x] propagação do correlationId via Kafka
-- [x] fluxo distribuído Payment → Kafka → Fraud
-- [x] logs estruturados em JSON
-- [x] parsing JSON com Grafana Alloy
-- [x] structured metadata no Loki
-- [x] consulta distribuída por correlationId
-- [x] dashboard NexaPay Distributed Logs
-- [x] dashboard NexaPay Overview
-- [x] dashboard NexaPay Resilience
-- [x] dashboard NexaPay Technical SLOs
-- [x] disponibilidade por serviço
-- [x] taxa de erros HTTP 5xx
-- [x] latência HTTP
-- [x] backlog do Transactional Outbox
-- [x] métricas de retry e DLT Kafka
-- [x] validação dos principais SLOs técnicos
-
-### Fluxo distribuído observado
-
-```text
-Payment Service
-      |
-      v
-Transactional Outbox
-      |
-      v
-Apache Kafka
-      |
-      v
-Fraud Service
-      |
-      v
-Fraud Analysis
-```
-
-O mesmo `correlationId` é preservado durante o fluxo assíncrono, permitindo rastrear uma operação entre diferentes microsserviços com Alloy, Loki e Grafana.
-
-### Structured Logging
-
-Payment Service e Fraud Service utilizam logs estruturados em JSON com campos como `@timestamp`, `level`, `service`, `correlationId`, `logger_name`, `thread_name` e `message`.
-
-O Grafana Alloy realiza o parsing antes do envio ao Loki. Identificadores de alta cardinalidade, como `correlationId`, são mantidos como structured metadata.
-
-### SLOs técnicos
-
-O dashboard `NexaPay Technical SLOs` monitora disponibilidade, HTTP 5xx Error Rate, latência HTTP, backlog do Outbox, falhas/retries Kafka e recuperações via DLT.
-
-Os objetivos são referências técnicas para o ambiente de demonstração e portfólio, e não representam SLA contratual de produção.
 
 ---
 
@@ -778,16 +449,15 @@ Os objetivos são referências técnicas para o ambiente de demonstração e por
 - não há refresh token, revogação, password reset ou MFA;
 - não há object-level authorization/ownership de conta ou pagamento;
 - a decisão do Fraud Service não atualiza automaticamente o Payment Service;
-- Kafka e Outbox operam com semântica at-least-once; não há garantia exactly-once global;
+- Kafka e Outbox operam com semântica at-least-once;
 - DLT e offset commit não participam de uma única transação distribuída;
-- o replay da DLT é operacional e controlado, não automático;
+- replay de DLT é operacional e controlado;
 - o Ledger não é double-entry;
-- tópicos/DLT devem ser provisionados em produção com contagem de partições compatível quando for preservada a partição original;
-- credenciais do Grafana e segredos atuais são adequados somente para desenvolvimento local;
-- hardening de produção e deploy cloud real continuam como evoluções do projeto.
+- credenciais e segredos locais devem ser endurecidos antes de produção;
+- hardening de produção e deploy cloud real continuam como evoluções da Sprint 12.
 
 ---
 
 ## Autor
 
-Projeto desenvolvido por **Jucelio Farias Coelho** como projeto de estudo e portfólio de engenharia de software backend Java.
+Projeto desenvolvido por **Jucelio Farias Coelho** como projeto de estudo e portfólio de engenharia de software backend Java, microsserviços, sistemas orientados a eventos, segurança, resiliência, CI/CD e observabilidade distribuída.
