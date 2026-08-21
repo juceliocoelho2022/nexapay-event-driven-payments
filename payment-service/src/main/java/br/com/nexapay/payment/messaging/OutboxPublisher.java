@@ -13,7 +13,6 @@ import org.apache.kafka.common.header.internals.RecordHeader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,7 +21,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Component
@@ -31,7 +29,7 @@ public class OutboxPublisher {
     private static final Logger log = LoggerFactory.getLogger(OutboxPublisher.class);
 
     private final OutboxEventRepository repository;
-    private final KafkaTemplate<String, String> kafkaTemplate;
+    private final ResilientKafkaPublisher resilientKafkaPublisher;
     private final MeterRegistry meterRegistry;
     private final Tracer tracer;
     private final Propagator propagator;
@@ -39,12 +37,12 @@ public class OutboxPublisher {
 
     public OutboxPublisher(
             OutboxEventRepository repository,
-            KafkaTemplate<String, String> kafkaTemplate,
+            ResilientKafkaPublisher resilientKafkaPublisher,
             MeterRegistry meterRegistry,
             Tracer tracer,
             Propagator propagator) {
         this.repository = repository;
-        this.kafkaTemplate = kafkaTemplate;
+        this.resilientKafkaPublisher = resilientKafkaPublisher;
         this.meterRegistry = meterRegistry;
         this.tracer = tracer;
         this.propagator = propagator;
@@ -92,9 +90,7 @@ public class OutboxPublisher {
                 ));
             }
 
-            kafkaTemplate
-                    .send(record)
-                    .get(10, TimeUnit.SECONDS);
+            resilientKafkaPublisher.send(record);
 
             event.markPublished();
             meterRegistry.counter(
