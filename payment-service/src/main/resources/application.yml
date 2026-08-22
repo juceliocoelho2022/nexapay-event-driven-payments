@@ -32,6 +32,29 @@ spring:
       properties:
         enable.idempotence: true
 
+resilience4j:
+  retry:
+    instances:
+      outbox-kafka:
+        max-attempts: 3
+        wait-duration: 500ms
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - java.lang.IllegalStateException
+  circuitbreaker:
+    instances:
+      outbox-kafka:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 15s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        record-exceptions:
+          - java.lang.IllegalStateException
+
 logging:
   file:
     name: ${NEXAPAY_LOG_DIR:logs}/nexapay-payment-service.log
@@ -67,6 +90,7 @@ management:
 nexapay:
   outbox:
     fixed-delay-ms: 2000
+    kafka-publish-timeout: ${NEXAPAY_KAFKA_PUBLISH_TIMEOUT:10s}
   security:
     jwt:
       issuer: https://nexapay.local/auth
