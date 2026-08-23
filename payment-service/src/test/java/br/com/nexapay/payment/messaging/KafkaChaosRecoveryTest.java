@@ -50,7 +50,7 @@ class KafkaChaosRecoveryTest {
                         .waitDurationInOpenState(Duration.ofMillis(100))
                         .permittedNumberOfCallsInHalfOpenState(2)
                         .automaticTransitionFromOpenToHalfOpenEnabled(true)
-                        .recordException(IllegalStateException.class)
+                        .recordException(ex -> ex instanceof IllegalStateException)
                         .build()
         );
 
