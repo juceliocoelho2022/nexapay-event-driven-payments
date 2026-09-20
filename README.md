@@ -24,6 +24,25 @@
 
 ---
 
+## Technical Snapshot
+
+| Focus | Evidence in this project |
+|---|---|
+| Target roles | Java Backend Developer · Backend Engineer · Software Engineer |
+| Architecture | Microservices · Event-Driven Architecture · Distributed Systems |
+| Backend | Java 21 · Spring Boot · Spring Web · Spring Data JPA · Spring Security |
+| Messaging & resilience | Apache Kafka · Transactional Outbox · Idempotency · Retry · DLT |
+| Data | PostgreSQL · Redis · Flyway |
+| Observability | OpenTelemetry · Prometheus · Grafana · Loki · Tempo |
+| Quality & delivery | JUnit 5 · Mockito · MockMvc · Testcontainers · Docker · GitHub Actions |
+
+**Engineering highlights:** fluxo PIX distribuído, processamento assíncrono, segurança JWT, semântica at-least-once com consumidores idempotentes, observabilidade ponta a ponta e tracing distribuído entre HTTP e Kafka.
+
+**Keywords:** `Java Backend` `Spring Boot` `Microservices` `Apache Kafka` `REST API` `PostgreSQL` `Redis` `Docker` `CI/CD` `Distributed Systems` `Event-Driven Architecture` `Observability`
+
+---
+
+
 ## Sobre o projeto
 
 O **NexaPay** é um projeto de portfólio de engenharia de software backend Java voltado a sistemas financeiros distribuídos e orientados a eventos. A arquitetura explora comunicação síncrona e assíncrona, segurança, resiliência, CI/CD e os três pilares de observabilidade: **métricas, logs e traces**.
