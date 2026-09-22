@@ -86,6 +86,14 @@ jobs:
       - name: Validate cloud-ready Docker Compose configuration
         run: docker compose --env-file .env.production.example -f docker-compose.prod.yml config --quiet
 
+      - name: Validate Prometheus configuration and SLO rules
+        run: |
+          docker run --rm \
+            -v "$PWD/observability/prometheus:/etc/prometheus:ro" \
+            --entrypoint /bin/promtool \
+            prom/prometheus:v3.13.1 \
+            check config /etc/prometheus/prometheus.yml
+
   service-images:
     name: Image · ${{ matrix.module }}
     runs-on: ubuntu-latest

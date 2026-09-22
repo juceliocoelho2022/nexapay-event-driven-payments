@@ -158,6 +158,7 @@ services:
 
     volumes:
       - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus/slo-rules.yml:/etc/prometheus/slo-rules.yml:ro
       - nexapay_prometheus_data:/prometheus
 
     restart: unless-stopped
