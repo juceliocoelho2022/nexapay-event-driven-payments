@@ -65,7 +65,7 @@ class KafkaTestcontainersIntegrationTest {
             assertThat(record.value()).isEqualTo(payload);
         } finally {
             consumer.close();
-            producerFactory.stop();
+            ((DefaultKafkaProducerFactory<String, String>) producerFactory).destroy();
         }
     }
 }
