@@ -276,6 +276,26 @@ A Sprint 11 consolidou métricas, logs estruturados, correlationId e SLOs técni
 
 # Sprint 12 — Production Hardening e Distributed Tracing 🚧
 
+## Production Hardening artifacts
+
+- [Runbook, SLI/SLO targets and failure drills](docs/production-hardening.md)
+- [Prometheus SLO recording/alert rules](observability/prometheus/slo-rules.yml)
+- [Controlled failure-drill evidence script](scripts/failure-drill.ps1)
+- [Controlled DLT replay](scripts/replay-dlt.ps1)
+
+Current hardening status:
+
+- [x] SLI/SLO targets versioned
+- [x] bounded retry budget documented
+- [x] Prometheus recording and alert rules
+- [x] Prometheus rules validated by CI with `promtool`
+- [x] PostgreSQL failure -> retry/DLT -> recovery/replay scenario
+- [x] Kafka outage and downstream-service drill procedures
+- [x] incident runbook
+- [ ] runtime evidence package from the current environment (Grafana + Tempo + Loki + terminal output)
+
+> The final evidence checkbox remains open intentionally until the drills are executed in the runtime environment and the resulting metrics/traces are reviewed.
+
 A Sprint 12 evolui o NexaPay em direção a um ambiente mais próximo de produção, com foco em **distributed tracing**, diagnóstico de requisições e propagação de contexto através de comunicação síncrona e assíncrona.
 
 ## Distributed Tracing
