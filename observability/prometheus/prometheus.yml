@@ -3,6 +3,9 @@ global:
   scrape_timeout: 3s
   evaluation_interval: 15s
 
+rule_files:
+  - /etc/prometheus/slo-rules.yml
+
 scrape_configs:
   - job_name: nexapay-services
     metrics_path: /actuator/prometheus
