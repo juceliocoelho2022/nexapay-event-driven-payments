@@ -1,0 +1,84 @@
+groups:
+  - name: nexapay-slo-recording
+    interval: 15s
+    rules:
+      - record: nexapay:sli:availability_ratio_5m
+        expr: avg by (service) (avg_over_time(up{job=~"nexapay-services|nexapay-gateway"}[5m]))
+
+      - record: nexapay:sli:http_5xx_ratio_5m
+        expr: |
+          (
+            sum by (service) (rate(http_server_requests_seconds_count{job=~"nexapay-services|nexapay-gateway",status=~"5.."}[5m]))
+            or
+            0 * sum by (service) (rate(http_server_requests_seconds_count{job=~"nexapay-services|nexapay-gateway"}[5m]))
+          )
+          /
+          clamp_min(
+            sum by (service) (rate(http_server_requests_seconds_count{job=~"nexapay-services|nexapay-gateway"}[5m])),
+            0.000001
+          )
+
+      - record: nexapay:sli:http_mean_latency_seconds_5m
+        expr: |
+          sum by (service) (rate(http_server_requests_seconds_sum{job=~"nexapay-services|nexapay-gateway"}[5m]))
+          /
+          clamp_min(
+            sum by (service) (rate(http_server_requests_seconds_count{job=~"nexapay-services|nexapay-gateway"}[5m])),
+            0.000001
+          )
+
+      - record: nexapay:sli:outbox_pending
+        expr: sum(nexapay_outbox_batch_pending)
+
+  - name: nexapay-slo-alerts
+    interval: 15s
+    rules:
+      - alert: NexaPayServiceAvailabilityBelow99
+        expr: nexapay:sli:availability_ratio_5m < 0.99
+        for: 5m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "NexaPay service availability below 99%"
+          description: "Service {{ $labels.service }} has a 5-minute scrape availability ratio below 99%. Investigate service health, dependencies and recent changes."
+
+      - alert: NexaPayHttp5xxRatioHigh
+        expr: nexapay:sli:http_5xx_ratio_5m > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          category: errors
+        annotations:
+          summary: "NexaPay HTTP 5xx ratio above 1%"
+          description: "Service {{ $labels.service }} has exceeded the 1% HTTP 5xx technical target for 5 minutes."
+
+      - alert: NexaPayHttpMeanLatencyHigh
+        expr: nexapay:sli:http_mean_latency_seconds_5m > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          category: latency
+        annotations:
+          summary: "NexaPay mean HTTP latency above 500 ms"
+          description: "Service {{ $labels.service }} has exceeded the current 500 ms mean-latency technical target for 5 minutes."
+
+      - alert: NexaPayOutboxBacklogNotRecovering
+        expr: nexapay:sli:outbox_pending > 0
+        for: 10m
+        labels:
+          severity: warning
+          category: messaging
+        annotations:
+          summary: "NexaPay Outbox backlog is not returning to zero"
+          description: "Pending Outbox records have remained above zero for 10 minutes. Check Kafka connectivity, publisher retries and circuit-breaker state."
+
+      - alert: NexaPayDltPublished
+        expr: sum(increase(nexapay_kafka_dlt_published_total[10m])) > 0
+        for: 0m
+        labels:
+          severity: warning
+          category: messaging
+        annotations:
+          summary: "NexaPay published one or more records to a DLT"
+          description: "A Kafka record reached a Dead Letter Topic during the last 10 minutes. Inspect the source exception before any controlled replay."
