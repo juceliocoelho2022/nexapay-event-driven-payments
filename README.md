@@ -24,6 +24,9 @@
 
 ---
 
+
+> **Engineering decisions & trade-offs:** [docs/engineering-decisions.md](docs/engineering-decisions.md) — contexto, alternativas consideradas, custos das escolhas, estratégia de testes e diagnóstico operacional.
+
 ## Technical Snapshot
 
 | Focus | Evidence in this project |
