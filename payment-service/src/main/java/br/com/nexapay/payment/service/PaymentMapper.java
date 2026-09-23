@@ -15,7 +15,9 @@ public class PaymentMapper {
                 payment.getAmount(),
                 payment.getDescription(),
                 payment.getStatus(),
-                payment.getCreatedAt()
+                payment.getCreatedAt(),
+                payment.getScheduledAt(),
+                payment.getExecutedAt()
         );
     }
 }
