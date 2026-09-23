@@ -86,6 +86,48 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
             @Param("scheduledAt") OffsetDateTime scheduledAt
     );
 
+    @Modifying
+    @Query(value = """
+            INSERT INTO payments (
+                id,
+                idempotency_key,
+                payer_account_id,
+                pix_key,
+                amount,
+                description,
+                status,
+                created_at,
+                scheduled_at,
+                recurring_schedule_id,
+                recurring_occurrence_at
+            ) VALUES (
+                :id,
+                :idempotencyKey,
+                :payerAccountId,
+                :pixKey,
+                :amount,
+                :description,
+                'SCHEDULED',
+                :createdAt,
+                :scheduledAt,
+                :recurringScheduleId,
+                :recurringOccurrenceAt
+            )
+            ON CONFLICT DO NOTHING
+            """, nativeQuery = true)
+    int insertRecurringScheduledIfAbsent(
+            @Param("id") UUID id,
+            @Param("idempotencyKey") String idempotencyKey,
+            @Param("payerAccountId") String payerAccountId,
+            @Param("pixKey") String pixKey,
+            @Param("amount") BigDecimal amount,
+            @Param("description") String description,
+            @Param("createdAt") OffsetDateTime createdAt,
+            @Param("scheduledAt") OffsetDateTime scheduledAt,
+            @Param("recurringScheduleId") UUID recurringScheduleId,
+            @Param("recurringOccurrenceAt") OffsetDateTime recurringOccurrenceAt
+    );
+
     @Query(value = """
             SELECT id
             FROM payments

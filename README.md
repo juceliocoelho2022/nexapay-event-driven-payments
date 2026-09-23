@@ -83,7 +83,7 @@ Sprint 8  — API Gateway              ✅ Concluída
 Sprint 9  — Frontend                 ✅ Concluída
 Sprint 10 — CI/CD e Cloud            ✅ Concluída
 Sprint 11 — Observabilidade avançada ✅ Concluída
-Sprint 12 — Production Hardening     🚧 Em evolução\nSprint 13 — PIX Agendado             🚧 Em evolução
+Sprint 12 — Production Hardening     🚧 Em evolução\nSprint 13 — PIX Agendado             ✅ Concluída\nSprint 14 — PIX Recorrente           🚧 Em evolução
 ```
 
 ---
@@ -293,7 +293,7 @@ A Sprint 11 consolidou métricas, logs estruturados, correlationId e SLOs técni
 
 ---
 
-# Sprint 13 — PIX Agendado 🚧
+# Sprint 13 — PIX Agendado ✅
 
 A Sprint 13 aplica o workflow **SPEC → arquitetura → implementação → testes → CI** em uma feature real.
 
@@ -332,6 +332,43 @@ Destaques de engenharia:
 - Outbox é criada somente pelo vencedor do claim;
 - métricas para agendamentos, execuções e claims ignorados;
 - recorrência permanece fora deste primeiro slice e será evoluída separadamente.
+
+---
+
+# Sprint 14 — PIX Recorrente 🚧
+
+A Sprint 14 separa **regra de recorrência** de **execução financeira**.
+
+- [SPEC Recurring PIX v1](docs/specs/recurring-pix-v1/README.md)
+- [ADR-007 — materialização de pagamentos agendados](docs/adr/ADR-007-recurring-pix-materialization.md)
+
+```text
+Recurring Schedule
+      |
+      | DAILY / WEEKLY / MONTHLY
+      v
+atomic occurrence claim
+      |
+      v
+Payment SCHEDULED
+      |
+      v
+Sprint 13 execution pipeline
+      |
+      v
+Transactional Outbox -> Kafka -> Fraud
+```
+
+Destaques:
+
+- regra finita de 1 a 365 ocorrências;
+- idempotência na criação da regra;
+- chave determinística por ocorrência;
+- claim concorrente no PostgreSQL;
+- rastreabilidade entre schedule e pagamento;
+- sem duplicação de lógica de Kafka/Outbox;
+- calendário mensal preserva o dia âncora quando possível;
+- Testcontainers valida concorrência e lifecycle em PostgreSQL real.
 
 ---
 
