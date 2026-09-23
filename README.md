@@ -83,7 +83,7 @@ Sprint 8  — API Gateway              ✅ Concluída
 Sprint 9  — Frontend                 ✅ Concluída
 Sprint 10 — CI/CD e Cloud            ✅ Concluída
 Sprint 11 — Observabilidade avançada ✅ Concluída
-Sprint 12 — Production Hardening     ✅ Concluída\nSprint 13 — PIX Agendado             🚧 Em evolução
+Sprint 12 — Production Hardening     🚧 Em evolução\nSprint 13 — PIX Agendado             🚧 Em evolução
 ```
 
 ---
