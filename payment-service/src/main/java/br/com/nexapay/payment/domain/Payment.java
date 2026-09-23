@@ -41,6 +41,12 @@ public class Payment {
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 
+    @Column(name = "scheduled_at")
+    private OffsetDateTime scheduledAt;
+
+    @Column(name = "executed_at")
+    private OffsetDateTime executedAt;
+
     protected Payment() {
     }
 
@@ -53,6 +59,31 @@ public class Payment {
             String description,
             PaymentStatus status,
             OffsetDateTime createdAt) {
+        this(
+                id,
+                idempotencyKey,
+                payerAccountId,
+                pixKey,
+                amount,
+                description,
+                status,
+                createdAt,
+                null,
+                null
+        );
+    }
+
+    public Payment(
+            UUID id,
+            String idempotencyKey,
+            String payerAccountId,
+            String pixKey,
+            BigDecimal amount,
+            String description,
+            PaymentStatus status,
+            OffsetDateTime createdAt,
+            OffsetDateTime scheduledAt,
+            OffsetDateTime executedAt) {
         this.id = id;
         this.idempotencyKey = idempotencyKey;
         this.payerAccountId = payerAccountId;
@@ -61,6 +92,8 @@ public class Payment {
         this.description = description;
         this.status = status;
         this.createdAt = createdAt;
+        this.scheduledAt = scheduledAt;
+        this.executedAt = executedAt;
     }
 
     public UUID getId() {
@@ -93,5 +126,13 @@ public class Payment {
 
     public OffsetDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public OffsetDateTime getScheduledAt() {
+        return scheduledAt;
+    }
+
+    public OffsetDateTime getExecutedAt() {
+        return executedAt;
     }
 }
