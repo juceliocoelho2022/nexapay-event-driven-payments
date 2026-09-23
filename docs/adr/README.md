@@ -15,5 +15,6 @@ Este diretório registra decisões arquiteturais relevantes do NexaPay, incluind
 | [ADR-009](ADR-009-fraud-decision-outbox-state-machine.md) | Fraud Decision via Outbox e máquina de estados | Aceita |
 | [ADR-010](ADR-010-manual-fraud-review-atomic-transition.md) | Revisão manual de fraude por transição atômica | Aceita |
 | [ADR-011](ADR-011-fraud-review-case-lease.md) | Fraud Review Queue com lease no PostgreSQL | Aceita |
+| [ADR-012](ADR-012-fraud-review-sla-priority-escalation.md) | SLA de revisão com prioridade persistida e escalonamento | Aceita |
 
 ADRs tornam explícito não apenas **o que** foi implementado, mas **por que** uma solução foi escolhida e quais custos e riscos foram aceitos.
