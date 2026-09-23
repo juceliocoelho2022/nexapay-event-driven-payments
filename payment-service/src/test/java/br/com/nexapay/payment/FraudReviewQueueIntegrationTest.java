@@ -1,8 +1,10 @@
 package br.com.nexapay.payment;
 
+import br.com.nexapay.payment.domain.FraudReviewPriority;
 import br.com.nexapay.payment.domain.Payment;
 import br.com.nexapay.payment.domain.PaymentStatus;
 import br.com.nexapay.payment.exception.FraudReviewCaseConflictException;
+import br.com.nexapay.payment.observability.FraudReviewSlaMonitor;
 import br.com.nexapay.payment.repository.FraudReviewCaseRepository;
 import br.com.nexapay.payment.repository.PaymentRepository;
 import br.com.nexapay.payment.service.FraudReviewQueueService;
@@ -39,7 +41,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         "nexapay.payment.scheduler.initial-delay-ms=600000",
         "nexapay.payment.recurring.fixed-delay-ms=600000",
         "nexapay.payment.recurring.initial-delay-ms=600000",
-        "nexapay.payment.fraud-review.lease-duration=15m"
+        "nexapay.payment.fraud-review.lease-duration=15m",
+        "nexapay.payment.fraud-review.sla-monitor.fixed-delay-ms=600000",
+        "nexapay.payment.fraud-review.sla-monitor.initial-delay-ms=600000"
 })
 class FraudReviewQueueIntegrationTest {
 
@@ -58,6 +62,9 @@ class FraudReviewQueueIntegrationTest {
 
     @Autowired
     private FraudReviewQueueService service;
+
+    @Autowired
+    private FraudReviewSlaMonitor slaMonitor;
 
     @Autowired
     private FraudReviewCaseRepository caseRepository;
@@ -83,8 +90,106 @@ class FraudReviewQueueIntegrationTest {
     }
 
     @Test
+    void shouldAssignPriorityOrderAndSlaDeadline() {
+        Payment p3 = saveReviewPayment("p3", "6000.00");
+        Payment p1 = saveReviewPayment("p1", "9500.00");
+        Payment p2 = saveReviewPayment("p2", "8000.00");
+
+        OffsetDateTime openedAt = OffsetDateTime.now();
+
+        service.openCase(p3.getId(), openedAt);
+        service.openCase(p1.getId(), openedAt);
+        service.openCase(p2.getId(), openedAt);
+
+        var queue = service.listOpenCases(null, null, null);
+
+        assertThat(queue)
+                .extracting(item -> item.priority())
+                .containsExactly(
+                        FraudReviewPriority.P1,
+                        FraudReviewPriority.P2,
+                        FraudReviewPriority.P3
+                );
+
+        assertThat(queue.get(0).slaDueAt())
+                .isEqualTo(openedAt.plusMinutes(15));
+        assertThat(queue.get(1).slaDueAt())
+                .isEqualTo(openedAt.plusMinutes(30));
+        assertThat(queue.get(2).slaDueAt())
+                .isEqualTo(openedAt.plusMinutes(60));
+    }
+
+    @Test
+    void shouldFilterByPriorityOverdueAndAvailability() {
+        Payment p1 = saveReviewPayment("filter-p1", "9500.00");
+        Payment p3 = saveReviewPayment("filter-p3", "6000.00");
+
+        service.openCase(p1.getId(), OffsetDateTime.now());
+        service.openCase(p3.getId(), OffsetDateTime.now());
+        service.claim(p3.getId(), "analyst-owner");
+
+        jdbcTemplate.update(
+                """
+                UPDATE fraud_review_cases
+                SET sla_due_at = ?
+                WHERE payment_id = ?
+                """,
+                OffsetDateTime.now().minusMinutes(1),
+                p1.getId()
+        );
+
+        var critical = service.listOpenCases(
+                FraudReviewPriority.P1,
+                true,
+                true
+        );
+
+        assertThat(critical).hasSize(1);
+        assertThat(critical.getFirst().paymentId()).isEqualTo(p1.getId());
+        assertThat(critical.getFirst().overdue()).isTrue();
+        assertThat(critical.getFirst().available()).isTrue();
+
+        var claimed = service.listOpenCases(
+                null,
+                false,
+                false
+        );
+
+        assertThat(claimed).hasSize(1);
+        assertThat(claimed.getFirst().paymentId()).isEqualTo(p3.getId());
+    }
+
+    @Test
+    void slaMonitorShouldEscalateOverdueCase() {
+        Payment payment = saveReviewPayment("overdue", "9500.00");
+        service.openCase(payment.getId(), OffsetDateTime.now());
+
+        jdbcTemplate.update(
+                """
+                UPDATE fraud_review_cases
+                SET sla_due_at = ?,
+                    escalated_at = NULL
+                WHERE payment_id = ?
+                """,
+                OffsetDateTime.now().minusMinutes(2),
+                payment.getId()
+        );
+
+        slaMonitor.refresh();
+
+        var reviewCase = caseRepository.findById(payment.getId()).orElseThrow();
+
+        assertThat(reviewCase.getEscalatedAt()).isNotNull();
+
+        var overdue = service.listOpenCases(null, true, null);
+        assertThat(overdue).hasSize(1);
+        assertThat(overdue.getFirst().overdue()).isTrue();
+        assertThat(overdue.getFirst().remainingSlaSeconds()).isNegative();
+    }
+
+    @Test
     void concurrentClaimsShouldHaveExactlyOneWinner() throws Exception {
-        Payment payment = saveReviewPayment("claim-race");
+        Payment payment = saveReviewPayment("claim-race", "7500.00");
         service.openCase(payment.getId(), OffsetDateTime.now());
 
         CountDownLatch ready = new CountDownLatch(2);
@@ -114,7 +219,7 @@ class FraudReviewQueueIntegrationTest {
                 .isIn("analyst-a", "analyst-b");
         assertThat(reviewCase.getClaimExpiresAt()).isNotNull();
 
-        var queue = service.listOpenCases();
+        var queue = service.listOpenCases(null, null, null);
 
         assertThat(queue).hasSize(1);
         assertThat(queue.getFirst().available()).isFalse();
@@ -122,7 +227,7 @@ class FraudReviewQueueIntegrationTest {
 
     @Test
     void sameOwnerShouldRenewLease() {
-        Payment payment = saveReviewPayment("renew");
+        Payment payment = saveReviewPayment("renew", "7500.00");
         service.openCase(payment.getId(), OffsetDateTime.now());
 
         var first = service.claim(payment.getId(), "analyst-owner");
@@ -135,7 +240,7 @@ class FraudReviewQueueIntegrationTest {
 
     @Test
     void expiredLeaseShouldAllowTakeover() {
-        Payment payment = saveReviewPayment("expired");
+        Payment payment = saveReviewPayment("expired", "7500.00");
         service.openCase(payment.getId(), OffsetDateTime.now());
 
         service.claim(payment.getId(), "expired-owner");
@@ -164,7 +269,7 @@ class FraudReviewQueueIntegrationTest {
 
     @Test
     void releaseShouldReturnCaseToAvailableQueue() {
-        Payment payment = saveReviewPayment("release");
+        Payment payment = saveReviewPayment("release", "7500.00");
         service.openCase(payment.getId(), OffsetDateTime.now());
 
         service.claim(payment.getId(), "analyst-owner");
@@ -203,13 +308,15 @@ class FraudReviewQueueIntegrationTest {
         }
     }
 
-    private Payment saveReviewPayment(String suffix) {
+    private Payment saveReviewPayment(
+            String suffix,
+            String amount) {
         return paymentRepository.saveAndFlush(new Payment(
                 UUID.randomUUID(),
                 "fraud-review-queue-" + suffix,
                 "ACC-QUEUE-" + suffix,
                 suffix + "@nexapay.test",
-                new BigDecimal("7500.00"),
+                new BigDecimal(amount),
                 "Fraud review queue test",
                 PaymentStatus.REVIEW,
                 OffsetDateTime.now()
