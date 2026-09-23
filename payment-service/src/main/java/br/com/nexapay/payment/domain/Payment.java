@@ -47,6 +47,12 @@ public class Payment {
     @Column(name = "executed_at")
     private OffsetDateTime executedAt;
 
+    @Column(name = "recurring_schedule_id")
+    private UUID recurringScheduleId;
+
+    @Column(name = "recurring_occurrence_at")
+    private OffsetDateTime recurringOccurrenceAt;
+
     protected Payment() {
     }
 
@@ -69,6 +75,8 @@ public class Payment {
                 status,
                 createdAt,
                 null,
+                null,
+                null,
                 null
         );
     }
@@ -84,6 +92,35 @@ public class Payment {
             OffsetDateTime createdAt,
             OffsetDateTime scheduledAt,
             OffsetDateTime executedAt) {
+        this(
+                id,
+                idempotencyKey,
+                payerAccountId,
+                pixKey,
+                amount,
+                description,
+                status,
+                createdAt,
+                scheduledAt,
+                executedAt,
+                null,
+                null
+        );
+    }
+
+    public Payment(
+            UUID id,
+            String idempotencyKey,
+            String payerAccountId,
+            String pixKey,
+            BigDecimal amount,
+            String description,
+            PaymentStatus status,
+            OffsetDateTime createdAt,
+            OffsetDateTime scheduledAt,
+            OffsetDateTime executedAt,
+            UUID recurringScheduleId,
+            OffsetDateTime recurringOccurrenceAt) {
         this.id = id;
         this.idempotencyKey = idempotencyKey;
         this.payerAccountId = payerAccountId;
@@ -94,45 +131,20 @@ public class Payment {
         this.createdAt = createdAt;
         this.scheduledAt = scheduledAt;
         this.executedAt = executedAt;
+        this.recurringScheduleId = recurringScheduleId;
+        this.recurringOccurrenceAt = recurringOccurrenceAt;
     }
 
-    public UUID getId() {
-        return id;
-    }
-
-    public String getIdempotencyKey() {
-        return idempotencyKey;
-    }
-
-    public String getPayerAccountId() {
-        return payerAccountId;
-    }
-
-    public String getPixKey() {
-        return pixKey;
-    }
-
-    public BigDecimal getAmount() {
-        return amount;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public PaymentStatus getStatus() {
-        return status;
-    }
-
-    public OffsetDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public OffsetDateTime getScheduledAt() {
-        return scheduledAt;
-    }
-
-    public OffsetDateTime getExecutedAt() {
-        return executedAt;
-    }
+    public UUID getId() { return id; }
+    public String getIdempotencyKey() { return idempotencyKey; }
+    public String getPayerAccountId() { return payerAccountId; }
+    public String getPixKey() { return pixKey; }
+    public BigDecimal getAmount() { return amount; }
+    public String getDescription() { return description; }
+    public PaymentStatus getStatus() { return status; }
+    public OffsetDateTime getCreatedAt() { return createdAt; }
+    public OffsetDateTime getScheduledAt() { return scheduledAt; }
+    public OffsetDateTime getExecutedAt() { return executedAt; }
+    public UUID getRecurringScheduleId() { return recurringScheduleId; }
+    public OffsetDateTime getRecurringOccurrenceAt() { return recurringOccurrenceAt; }
 }
