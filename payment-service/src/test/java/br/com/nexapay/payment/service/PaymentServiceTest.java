@@ -1,6 +1,7 @@
 package br.com.nexapay.payment.service;
 
 import br.com.nexapay.payment.api.CreatePixPaymentRequest;
+import br.com.nexapay.payment.api.SchedulePixPaymentRequest;
 import br.com.nexapay.payment.domain.Payment;
 import br.com.nexapay.payment.domain.PaymentStatus;
 import br.com.nexapay.payment.repository.OutboxEventRepository;
@@ -81,6 +82,7 @@ class PaymentServiceTest {
 
         assertThat(response.status()).isEqualTo(PaymentStatus.PENDING);
         assertThat(response.amount()).isEqualByComparingTo("99.90");
+        assertThat(response.scheduledAt()).isNull();
         assertThat(registry.counter("nexapay.payment.created").count()).isEqualTo(1.0);
 
         verify(paymentRepository).insertIfIdempotencyKeyAbsent(
@@ -120,6 +122,97 @@ class PaymentServiceTest {
         verify(outboxEventRepository, never()).save(any());
     }
 
+    @Test
+    void shouldSchedulePaymentWithoutCreatingOutbox() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        PaymentService service = newService(registry);
+        OffsetDateTime scheduledAt = OffsetDateTime.now().plusHours(2);
+
+        when(paymentRepository.findByIdempotencyKey("schedule-001"))
+                .thenReturn(Optional.empty());
+        when(paymentRepository.insertScheduledIfIdempotencyKeyAbsent(
+                any(),
+                eq("schedule-001"),
+                eq("ACC-4001"),
+                eq("scheduled@nexapay.test"),
+                eq(new BigDecimal("350.00")),
+                eq("PIX agendado"),
+                any(),
+                eq(scheduledAt)
+        )).thenReturn(1);
+
+        var response = service.schedulePixPayment(
+                "schedule-001",
+                scheduleRequest(
+                        "ACC-4001",
+                        "scheduled@nexapay.test",
+                        "350.00",
+                        "PIX agendado",
+                        scheduledAt
+                )
+        );
+
+        assertThat(response.status()).isEqualTo(PaymentStatus.SCHEDULED);
+        assertThat(response.scheduledAt()).isEqualTo(scheduledAt);
+        assertThat(response.executedAt()).isNull();
+        assertThat(registry.counter("nexapay.payment.scheduled").count()).isEqualTo(1.0);
+        verify(outboxEventRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldCreateOutboxOnlyWhenScheduledPaymentClaimWins() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        PaymentService service = newService(registry);
+
+        UUID paymentId = UUID.randomUUID();
+        OffsetDateTime createdAt = OffsetDateTime.now().minusDays(1);
+        OffsetDateTime scheduledAt = OffsetDateTime.now().minusMinutes(1);
+        OffsetDateTime executionTime = OffsetDateTime.now();
+
+        Payment claimedPayment = new Payment(
+                paymentId,
+                "schedule-002",
+                "ACC-5001",
+                "due@nexapay.test",
+                new BigDecimal("75.00"),
+                "PIX vencido",
+                PaymentStatus.PENDING,
+                createdAt,
+                scheduledAt,
+                executionTime
+        );
+
+        when(paymentRepository.claimScheduledPaymentForExecution(paymentId, executionTime))
+                .thenReturn(1);
+        when(paymentRepository.findById(paymentId))
+                .thenReturn(Optional.of(claimedPayment));
+
+        boolean executed = service.executeDueScheduledPayment(paymentId, executionTime);
+
+        assertThat(executed).isTrue();
+        assertThat(registry.counter("nexapay.payment.scheduled.executed").count()).isEqualTo(1.0);
+        verify(outboxEventRepository).save(any());
+    }
+
+    @Test
+    void shouldSkipOutboxWhenAnotherSchedulerAlreadyClaimedPayment() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        PaymentService service = newService(registry);
+
+        UUID paymentId = UUID.randomUUID();
+        OffsetDateTime executionTime = OffsetDateTime.now();
+
+        when(paymentRepository.claimScheduledPaymentForExecution(paymentId, executionTime))
+                .thenReturn(0);
+
+        boolean executed = service.executeDueScheduledPayment(paymentId, executionTime);
+
+        assertThat(executed).isFalse();
+        assertThat(registry.counter("nexapay.payment.scheduled.claim.skipped").count()).isEqualTo(1.0);
+        verify(paymentRepository, never()).findById(paymentId);
+        verify(outboxEventRepository, never()).save(any());
+    }
+
     private PaymentService newService(SimpleMeterRegistry registry) {
         return new PaymentService(
                 paymentRepository,
@@ -143,6 +236,22 @@ class PaymentServiceTest {
                 pixKey,
                 new BigDecimal(amount),
                 description
+        );
+    }
+
+    private SchedulePixPaymentRequest scheduleRequest(
+            String payerAccountId,
+            String pixKey,
+            String amount,
+            String description,
+            OffsetDateTime scheduledAt
+    ) {
+        return new SchedulePixPaymentRequest(
+                payerAccountId,
+                pixKey,
+                new BigDecimal(amount),
+                description,
+                scheduledAt
         );
     }
 
