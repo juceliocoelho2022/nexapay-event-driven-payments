@@ -22,14 +22,17 @@ public class ManualFraudReviewService {
 
     private final PaymentRepository paymentRepository;
     private final ManualFraudReviewAuditRepository auditRepository;
+    private final FraudReviewQueueService fraudReviewQueueService;
     private final MeterRegistry meterRegistry;
 
     public ManualFraudReviewService(
             PaymentRepository paymentRepository,
             ManualFraudReviewAuditRepository auditRepository,
+            FraudReviewQueueService fraudReviewQueueService,
             MeterRegistry meterRegistry) {
         this.paymentRepository = paymentRepository;
         this.auditRepository = auditRepository;
+        this.fraudReviewQueueService = fraudReviewQueueService;
         this.meterRegistry = meterRegistry;
     }
 
@@ -70,6 +73,13 @@ public class ManualFraudReviewService {
 
             throw new ManualFraudReviewConflictException(paymentId);
         }
+
+        fraudReviewQueueService.resolveOwnedCase(
+                paymentId,
+                reviewerSubject,
+                decision.name(),
+                reviewedAt
+        );
 
         auditRepository.save(new ManualFraudReviewAudit(
                 UUID.randomUUID(),
