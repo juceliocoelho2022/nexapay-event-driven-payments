@@ -4,6 +4,7 @@ import br.com.nexapay.fraud.domain.FraudDecision;
 import br.com.nexapay.fraud.domain.FraudDecisionType;
 import br.com.nexapay.fraud.event.PaymentCreatedEvent;
 import br.com.nexapay.fraud.repository.FraudDecisionRepository;
+import br.com.nexapay.fraud.repository.FraudOutboxEventRepository;
 import br.com.nexapay.fraud.service.FraudService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,7 +28,10 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Testcontainers
-@SpringBootTest(properties = "spring.kafka.listener.auto-startup=false")
+@SpringBootTest(properties = {
+        "spring.kafka.listener.auto-startup=false",
+        "nexapay.fraud.outbox.initial-delay-ms=600000"
+})
 class FraudDecisionIntegrationTest {
 
     @Container
@@ -50,8 +54,12 @@ class FraudDecisionIntegrationTest {
     @Autowired
     private FraudDecisionRepository repository;
 
+    @Autowired
+    private FraudOutboxEventRepository outboxRepository;
+
     @BeforeEach
     void cleanDatabase() {
+        outboxRepository.deleteAll();
         repository.deleteAll();
     }
 
@@ -61,6 +69,7 @@ class FraudDecisionIntegrationTest {
 
         assertThat(decision.getDecision()).isEqualTo(FraudDecisionType.APPROVED);
         assertThat(decision.getRiskScore()).isEqualTo(20);
+        assertThat(outboxRepository.count()).isEqualTo(1);
     }
 
     @Test
@@ -87,6 +96,7 @@ class FraudDecisionIntegrationTest {
         FraudDecision second = fraudService.analyze(event);
 
         assertThat(repository.count()).isEqualTo(1);
+        assertThat(outboxRepository.count()).isEqualTo(1);
         assertThat(second.getId()).isEqualTo(first.getId());
     }
 
@@ -113,6 +123,7 @@ class FraudDecisionIntegrationTest {
         }
 
         assertThat(repository.count()).isEqualTo(1);
+        assertThat(outboxRepository.count()).isEqualTo(1);
         assertThat(repository.findByEventId(event.eventId())).isPresent();
     }
 
