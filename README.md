@@ -88,7 +88,8 @@ Sprint 13 — PIX Agendado             ✅ Concluída
 Sprint 14 — PIX Recorrente           ✅ Concluída
 Sprint 15 — Cancelamento e Auditoria ✅ Concluída
 Sprint 16 — Fraud Decision State     ✅ Concluída
-Sprint 17 — Manual Fraud Review       🚧 Em evolução
+Sprint 17 — Manual Fraud Review       ✅ Concluída
+Sprint 18 — Fraud Review Queue        🚧 Em evolução
 ```
 
 ---
@@ -227,6 +228,9 @@ GET  /api/v1/payments/{id}/cancellations
 GET  /api/v1/payments/pix/recurring/{id}/cancellations
 POST /api/v1/payments/{id}/fraud-review
 GET  /api/v1/payments/{id}/fraud-review/history
+GET  /api/v1/fraud-review/cases
+POST /api/v1/fraud-review/cases/{id}/claim
+POST /api/v1/fraud-review/cases/{id}/release
 ```
 
 A criação utiliza `Idempotency-Key`, Transactional Outbox e publica o evento:
@@ -467,7 +471,7 @@ Destaques:
 
 ---
 
-# Sprint 17 — Manual Fraud Review 🚧
+# Sprint 17 — Manual Fraud Review ✅
 
 A Sprint 17 fecha o estado `REVIEW` com decisão humana segura e auditável.
 
@@ -496,6 +500,44 @@ Destaques:
 - histórico protegido por `PAYMENT_READ`;
 - decisão automática original de fraude permanece preservada;
 - Testcontainers valida disputa real APPROVE x REJECT no PostgreSQL 17.
+
+---
+
+# Sprint 18 — Fraud Review Queue 🚧
+
+A Sprint 18 transforma pagamentos em `REVIEW` em **casos operacionais com ownership temporário**.
+
+- [SPEC Fraud Review Queue v1](docs/specs/fraud-review-queue-v1/README.md)
+- [ADR-011 — claim com lease no PostgreSQL](docs/adr/ADR-011-fraud-review-case-lease.md)
+
+```text
+FraudDecisionMade(REVIEW)
+        |
+        v
+Payment REVIEW
+        |
+        +--> FraudReviewCase OPEN
+                  |
+                  | claim (lease 15 min)
+                  v
+              owned case
+                  |
+                  +-- APPROVE --> COMPLETED
+                  +-- REJECT ---> REJECTED
+                  +-- release/expiry --> available
+```
+
+Destaques:
+
+- caso criado na mesma transação que coloca o pagamento em `REVIEW`;
+- claim atômico no PostgreSQL;
+- lease padrão de 15 minutos;
+- mesmo analista pode renovar o lease;
+- lease expirado pode ser assumido por outro analista;
+- decisão manual exige ownership ativo;
+- resolução do caso e decisão do pagamento compartilham a mesma transação;
+- fila expõe amount, PIX key, risk score, reason e owner atual;
+- Testcontainers valida disputa real entre analistas.
 
 ---
 

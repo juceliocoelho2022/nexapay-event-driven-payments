@@ -4,9 +4,12 @@ import br.com.nexapay.payment.domain.ManualFraudReviewAudit;
 import br.com.nexapay.payment.domain.ManualFraudReviewDecision;
 import br.com.nexapay.payment.domain.Payment;
 import br.com.nexapay.payment.domain.PaymentStatus;
+import br.com.nexapay.payment.exception.FraudReviewCaseConflictException;
 import br.com.nexapay.payment.exception.ManualFraudReviewConflictException;
+import br.com.nexapay.payment.repository.FraudReviewCaseRepository;
 import br.com.nexapay.payment.repository.ManualFraudReviewAuditRepository;
 import br.com.nexapay.payment.repository.PaymentRepository;
+import br.com.nexapay.payment.service.FraudReviewQueueService;
 import br.com.nexapay.payment.service.ManualFraudReviewService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -60,7 +63,13 @@ class ManualFraudReviewLifecycleIntegrationTest {
     private ManualFraudReviewService service;
 
     @Autowired
+    private FraudReviewQueueService queueService;
+
+    @Autowired
     private PaymentRepository paymentRepository;
+
+    @Autowired
+    private FraudReviewCaseRepository reviewCaseRepository;
 
     @Autowired
     private ManualFraudReviewAuditRepository auditRepository;
@@ -70,6 +79,7 @@ class ManualFraudReviewLifecycleIntegrationTest {
     @BeforeEach
     void setUp() {
         auditRepository.deleteAll();
+        reviewCaseRepository.deleteAll();
         paymentRepository.deleteAll();
         executor = Executors.newFixedThreadPool(2);
     }
@@ -80,8 +90,9 @@ class ManualFraudReviewLifecycleIntegrationTest {
     }
 
     @Test
-    void shouldApproveAndRejectPaymentsInReview() {
-        Payment approvePayment = savePayment("approve", PaymentStatus.REVIEW);
+    void shouldApproveAndRejectPaymentsOwnedByReviewer() {
+        Payment approvePayment = saveReviewPayment("approve");
+        prepareOwnedCase(approvePayment.getId(), "fraud-analyst-01");
 
         var approved = service.review(
                 approvePayment.getId(),
@@ -94,8 +105,11 @@ class ManualFraudReviewLifecycleIntegrationTest {
         assertThat(approved.finalStatus()).isEqualTo(PaymentStatus.COMPLETED);
         assertThat(paymentRepository.findById(approvePayment.getId()).orElseThrow().getStatus())
                 .isEqualTo(PaymentStatus.COMPLETED);
+        assertThat(reviewCaseRepository.findById(approvePayment.getId()).orElseThrow().getStatus().name())
+                .isEqualTo("RESOLVED");
 
-        Payment rejectPayment = savePayment("reject", PaymentStatus.REVIEW);
+        Payment rejectPayment = saveReviewPayment("reject");
+        prepareOwnedCase(rejectPayment.getId(), "fraud-analyst-02");
 
         var rejected = service.review(
                 rejectPayment.getId(),
@@ -107,8 +121,27 @@ class ManualFraudReviewLifecycleIntegrationTest {
         assertThat(rejected.finalStatus()).isEqualTo(PaymentStatus.REJECTED);
         assertThat(paymentRepository.findById(rejectPayment.getId()).orElseThrow().getStatus())
                 .isEqualTo(PaymentStatus.REJECTED);
-
         assertThat(auditRepository.count()).isEqualTo(2);
+    }
+
+    @Test
+    void shouldRejectManualReviewWithoutActiveOwnership() {
+        Payment payment = saveReviewPayment("not-owner");
+        queueService.openCase(payment.getId(), OffsetDateTime.now());
+        queueService.claim(payment.getId(), "actual-owner");
+
+        assertThatThrownBy(() -> service.review(
+                payment.getId(),
+                ManualFraudReviewDecision.APPROVE,
+                "Reviewer sem ownership",
+                "other-reviewer"
+        )).isInstanceOf(FraudReviewCaseConflictException.class);
+
+        assertThat(auditRepository.count()).isZero();
+        assertThat(paymentRepository.findById(payment.getId()).orElseThrow().getStatus())
+                .isEqualTo(PaymentStatus.REVIEW);
+        assertThat(reviewCaseRepository.findById(payment.getId()).orElseThrow().getStatus().name())
+                .isEqualTo("OPEN");
     }
 
     @Test
@@ -128,8 +161,9 @@ class ManualFraudReviewLifecycleIntegrationTest {
     }
 
     @Test
-    void concurrentApproveAndRejectShouldHaveExactlyOneWinner() throws Exception {
-        Payment payment = savePayment("race", PaymentStatus.REVIEW);
+    void concurrentApproveAndRejectByOwnerShouldHaveExactlyOneWinner() throws Exception {
+        Payment payment = saveReviewPayment("race");
+        prepareOwnedCase(payment.getId(), "reviewer-owner");
 
         CountDownLatch ready = new CountDownLatch(2);
         CountDownLatch start = new CountDownLatch(1);
@@ -138,7 +172,7 @@ class ManualFraudReviewLifecycleIntegrationTest {
                 payment.getId(),
                 ManualFraudReviewDecision.APPROVE,
                 "Aprovação concorrente",
-                "reviewer-approve",
+                "reviewer-owner",
                 ready,
                 start
         ));
@@ -147,7 +181,7 @@ class ManualFraudReviewLifecycleIntegrationTest {
                 payment.getId(),
                 ManualFraudReviewDecision.REJECT,
                 "Rejeição concorrente",
-                "reviewer-reject",
+                "reviewer-owner",
                 ready,
                 start
         ));
@@ -168,10 +202,8 @@ class ManualFraudReviewLifecycleIntegrationTest {
 
         assertThat(finalPayment.getStatus()).isEqualTo(audit.getFinalStatus());
         assertThat(audit.getPreviousStatus()).isEqualTo(PaymentStatus.REVIEW);
-        assertThat(audit.getDecision()).isIn(
-                ManualFraudReviewDecision.APPROVE,
-                ManualFraudReviewDecision.REJECT
-        );
+        assertThat(reviewCaseRepository.findById(payment.getId()).orElseThrow().getStatus().name())
+                .isEqualTo("RESOLVED");
     }
 
     private String reviewWhenReleased(
@@ -191,9 +223,18 @@ class ManualFraudReviewLifecycleIntegrationTest {
         try {
             service.review(paymentId, decision, reason, reviewer);
             return "WIN";
-        } catch (ManualFraudReviewConflictException conflict) {
+        } catch (RuntimeException conflict) {
             return "CONFLICT";
         }
+    }
+
+    private void prepareOwnedCase(UUID paymentId, String reviewer) {
+        queueService.openCase(paymentId, OffsetDateTime.now());
+        queueService.claim(paymentId, reviewer);
+    }
+
+    private Payment saveReviewPayment(String suffix) {
+        return savePayment(suffix, PaymentStatus.REVIEW);
     }
 
     private Payment savePayment(String suffix, PaymentStatus status) {

@@ -3,6 +3,7 @@ package br.com.nexapay.payment;
 import br.com.nexapay.payment.domain.Payment;
 import br.com.nexapay.payment.domain.PaymentStatus;
 import br.com.nexapay.payment.event.FraudDecisionMadeEvent;
+import br.com.nexapay.payment.repository.FraudReviewCaseRepository;
 import br.com.nexapay.payment.repository.PaymentRepository;
 import br.com.nexapay.payment.repository.ProcessedFraudDecisionEventRepository;
 import br.com.nexapay.payment.service.FraudDecisionStateMachineService;
@@ -62,8 +63,12 @@ class FraudDecisionStateMachineIntegrationTest {
     @Autowired
     private ProcessedFraudDecisionEventRepository processedRepository;
 
+    @Autowired
+    private FraudReviewCaseRepository reviewCaseRepository;
+
     @BeforeEach
     void cleanDatabase() {
+        reviewCaseRepository.deleteAll();
         processedRepository.deleteAll();
         paymentRepository.deleteAll();
     }
@@ -93,6 +98,7 @@ class FraudDecisionStateMachineIntegrationTest {
 
         assertThat(finalPayment.getStatus()).isEqualTo(PaymentStatus.COMPLETED);
         assertThat(processedRepository.count()).isEqualTo(1);
+        assertThat(reviewCaseRepository.existsById(payment.getId())).isFalse();
     }
 
     @Test
@@ -185,6 +191,12 @@ class FraudDecisionStateMachineIntegrationTest {
         assertThat(updated.getFraudReason()).contains(decision);
         assertThat(updated.getFraudDecidedAt()).isNotNull();
         assertThat(processedRepository.count()).isEqualTo(1);
+
+        if (expected == PaymentStatus.REVIEW) {
+            assertThat(reviewCaseRepository.existsById(payment.getId())).isTrue();
+        } else {
+            assertThat(reviewCaseRepository.existsById(payment.getId())).isFalse();
+        }
     }
 
     private Payment savePendingPayment(String suffix) {
@@ -233,6 +245,7 @@ class FraudDecisionStateMachineIntegrationTest {
     }
 
     private void clear() {
+        reviewCaseRepository.deleteAll();
         processedRepository.deleteAll();
         paymentRepository.deleteAll();
     }
