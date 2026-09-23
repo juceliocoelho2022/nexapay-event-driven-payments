@@ -91,6 +91,70 @@ class PaymentSecurityIntegrationTest {
                 .andExpect(status().isCreated());
     }
 
+    @Test
+    void shouldAllowScheduledPaymentCreationWithPermission() throws Exception {
+        UUID paymentId = UUID.randomUUID();
+        OffsetDateTime scheduledAt = OffsetDateTime.now(ZoneOffset.UTC).plusDays(1);
+
+        when(paymentService.schedulePixPayment(eq("security-scheduled"), any(SchedulePixPaymentRequest.class)))
+                .thenReturn(paymentResponse(paymentId));
+
+        mockMvc.perform(post("/api/v1/payments/pix/scheduled")
+                        .header("Authorization", "Bearer " + token(List.of("PAYMENT_CREATE")))
+                        .header("Idempotency-Key", "security-scheduled")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "payerAccountId": "ACC-SECURITY-01",
+                                  "pixKey": "security@nexapay.com",
+                                  "amount": 25.00,
+                                  "description": "Scheduled JWT authorization test",
+                                  "scheduledAt": "%s"
+                                }
+                                """.formatted(scheduledAt)))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void shouldRejectScheduledPaymentWithoutCreatePermission() throws Exception {
+        OffsetDateTime scheduledAt = OffsetDateTime.now(ZoneOffset.UTC).plusDays(1);
+
+        mockMvc.perform(post("/api/v1/payments/pix/scheduled")
+                        .header("Authorization", "Bearer " + token(List.of("PAYMENT_READ")))
+                        .header("Idempotency-Key", "security-scheduled-denied")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "payerAccountId": "ACC-SECURITY-01",
+                                  "pixKey": "security@nexapay.com",
+                                  "amount": 25.00,
+                                  "description": "Scheduled JWT authorization test",
+                                  "scheduledAt": "%s"
+                                }
+                                """.formatted(scheduledAt)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void shouldRejectScheduledPaymentInThePast() throws Exception {
+        OffsetDateTime scheduledAt = OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(1);
+
+        mockMvc.perform(post("/api/v1/payments/pix/scheduled")
+                        .header("Authorization", "Bearer " + token(List.of("PAYMENT_CREATE")))
+                        .header("Idempotency-Key", "security-scheduled-past")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "payerAccountId": "ACC-SECURITY-01",
+                                  "pixKey": "security@nexapay.com",
+                                  "amount": 25.00,
+                                  "description": "Invalid scheduled time",
+                                  "scheduledAt": "%s"
+                                }
+                                """.formatted(scheduledAt)))
+                .andExpect(status().isBadRequest());
+    }
+
     private PaymentResponse paymentResponse(UUID paymentId) {
         return new PaymentResponse(
                 paymentId,
@@ -99,7 +163,9 @@ class PaymentSecurityIntegrationTest {
                 new BigDecimal("25.00"),
                 "JWT authorization test",
                 null,
-                OffsetDateTime.now(ZoneOffset.UTC)
+                OffsetDateTime.now(ZoneOffset.UTC),
+                null,
+                null
         );
     }
 

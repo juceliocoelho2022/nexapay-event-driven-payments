@@ -41,6 +41,19 @@ public class PaymentController {
                 .body(response);
     }
 
+    @PostMapping("/pix/scheduled")
+    @PreAuthorize("hasAuthority('PAYMENT_CREATE')")
+    public ResponseEntity<PaymentResponse> schedulePixPayment(
+            @RequestHeader("Idempotency-Key") @NotBlank String idempotencyKey,
+            @Valid @RequestBody SchedulePixPaymentRequest request) {
+
+        PaymentResponse response = paymentService.schedulePixPayment(idempotencyKey, request);
+
+        return ResponseEntity
+                .created(URI.create("/api/v1/payments/" + response.id()))
+                .body(response);
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('PAYMENT_READ')")
     public PaymentResponse findById(@PathVariable UUID id) {
