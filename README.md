@@ -27,6 +27,25 @@
 
 > **Engineering decisions & trade-offs:** [docs/engineering-decisions.md](docs/engineering-decisions.md) — contexto, alternativas consideradas, custos das escolhas, estratégia de testes e diagnóstico operacional.
 
+> **AI-assisted engineering:** [AGENTS.md](AGENTS.md) · [PIX Payment SPEC](docs/specs/pix-payment-v1/README.md) · [ADR-005 SDD + AI](docs/adr/ADR-005-spec-driven-ai-assisted-development.md) · [AI workflows](.ai/workflows/feature-development.md)
+
+### Engineering workflow: SDD + AI
+
+O NexaPay usa IA como acelerador de engenharia, não como fonte de verdade. Mudanças relevantes seguem um fluxo verificável:
+
+```text
+Problem
+  -> SPEC / acceptance criteria
+  -> impact analysis + ADRs
+  -> implementation
+  -> automated tests
+  -> review against SPEC
+  -> CI / quality gates
+  -> operational evidence
+```
+
+Guardrails para agentes, skills e workflows reutilizáveis são versionados junto com o código para manter contexto, invariantes e critérios de qualidade explícitos.
+
 ## Technical Snapshot
 
 | Focus | Evidence in this project |
