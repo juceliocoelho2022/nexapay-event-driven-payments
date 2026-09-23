@@ -98,12 +98,7 @@ class FraudDecisionStateMachineIntegrationTest {
 
         assertThat(finalPayment.getStatus()).isEqualTo(PaymentStatus.COMPLETED);
         assertThat(processedRepository.count()).isEqualTo(1);
-
-        if (expected == PaymentStatus.REVIEW) {
-            assertThat(reviewCaseRepository.existsById(payment.getId())).isTrue();
-        } else {
-            assertThat(reviewCaseRepository.existsById(payment.getId())).isFalse();
-        }
+        assertThat(reviewCaseRepository.existsById(payment.getId())).isFalse();
     }
 
     @Test
@@ -196,6 +191,12 @@ class FraudDecisionStateMachineIntegrationTest {
         assertThat(updated.getFraudReason()).contains(decision);
         assertThat(updated.getFraudDecidedAt()).isNotNull();
         assertThat(processedRepository.count()).isEqualTo(1);
+
+        if (expected == PaymentStatus.REVIEW) {
+            assertThat(reviewCaseRepository.existsById(payment.getId())).isTrue();
+        } else {
+            assertThat(reviewCaseRepository.existsById(payment.getId())).isFalse();
+        }
     }
 
     private Payment savePendingPayment(String suffix) {
