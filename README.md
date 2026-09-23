@@ -83,7 +83,7 @@ Sprint 8  — API Gateway              ✅ Concluída
 Sprint 9  — Frontend                 ✅ Concluída
 Sprint 10 — CI/CD e Cloud            ✅ Concluída
 Sprint 11 — Observabilidade avançada ✅ Concluída
-Sprint 12 — Production Hardening     🚧 Em evolução\nSprint 13 — PIX Agendado             ✅ Concluída\nSprint 14 — PIX Recorrente           🚧 Em evolução
+Sprint 12 — Production Hardening     🚧 Em evolução\nSprint 13 — PIX Agendado             ✅ Concluída\nSprint 14 — PIX Recorrente           ✅ Concluída\nSprint 15 — Cancelamento e Auditoria  🚧 Em evolução
 ```
 
 ---
@@ -212,7 +212,14 @@ Os produtores usam **Transactional Outbox** para persistir alteração de domín
 
 ```http
 POST /api/v1/payments/pix
+POST /api/v1/payments/pix/scheduled
+POST /api/v1/payments/pix/recurring
+POST /api/v1/payments/{id}/cancel
+POST /api/v1/payments/pix/recurring/{id}/cancel
+
 GET  /api/v1/payments/{id}
+GET  /api/v1/payments/{id}/cancellations
+GET  /api/v1/payments/pix/recurring/{id}/cancellations
 ```
 
 A criação utiliza `Idempotency-Key`, Transactional Outbox e publica o evento:
@@ -335,7 +342,7 @@ Destaques de engenharia:
 
 ---
 
-# Sprint 14 — PIX Recorrente 🚧
+# Sprint 14 — PIX Recorrente ✅
 
 A Sprint 14 separa **regra de recorrência** de **execução financeira**.
 
@@ -369,6 +376,42 @@ Destaques:
 - sem duplicação de lógica de Kafka/Outbox;
 - calendário mensal preserva o dia âncora quando possível;
 - Testcontainers valida concorrência e lifecycle em PostgreSQL real.
+
+---
+
+# Sprint 15 — Cancelamento e Auditoria 🚧
+
+A Sprint 15 adiciona **cancelamento concorrente, segregação de permissão e trilha imutável de auditoria**.
+
+- [SPEC Cancellation v1](docs/specs/cancellation-v1/README.md)
+- [ADR-008 — cancelamento por transição atômica](docs/adr/ADR-008-atomic-cancellation-state-transition.md)
+
+```text
+Payment SCHEDULED
+      |
+      +-- cancel claim -----> CANCELLED
+      |
+      +-- execution claim --> PENDING
+
+Recurring ACTIVE
+      |
+      +-- cancel -----------> CANCELLED
+      |                        |
+      |                        +--> cancela payments ainda SCHEDULED
+      |
+      +-- materialize ------> Payment SCHEDULED
+```
+
+Destaques:
+
+- nova authority `PAYMENT_CANCEL`;
+- `SCHEDULED -> CANCELLED` por conditional update;
+- `ACTIVE -> CANCELLED` para recorrências;
+- cancelamento de pagamentos materializados ainda não executados;
+- auditoria imutável com actor do JWT, motivo e instante;
+- endpoints de histórico protegidos por `PAYMENT_READ`;
+- métricas de sucesso, rejeição e pagamentos afetados;
+- Testcontainers valida corrida real entre cancelamento e execução.
 
 ---
 
