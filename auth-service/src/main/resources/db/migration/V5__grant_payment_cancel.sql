@@ -10,7 +10,7 @@ FROM (
         p.id AS permission_id
     FROM roles r
     CROSS JOIN permissions p
-    WHERE r.name IN ('USER', 'ADMIN')
+    WHERE r.name IN ('ROLE_USER', 'ROLE_ADMIN')
       AND p.name = 'PAYMENT_CANCEL'
 ) granted
 ON CONFLICT DO NOTHING;
