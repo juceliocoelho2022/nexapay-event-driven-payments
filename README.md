@@ -83,7 +83,7 @@ Sprint 8  — API Gateway              ✅ Concluída
 Sprint 9  — Frontend                 ✅ Concluída
 Sprint 10 — CI/CD e Cloud            ✅ Concluída
 Sprint 11 — Observabilidade avançada ✅ Concluída
-Sprint 12 — Production Hardening     🚧 Em evolução
+Sprint 12 — Production Hardening     ✅ Concluída\nSprint 13 — PIX Agendado             🚧 Em evolução
 ```
 
 ---
@@ -290,6 +290,48 @@ A Sprint 11 consolidou métricas, logs estruturados, correlationId e SLOs técni
 - [x] latência HTTP
 - [x] backlog do Outbox
 - [x] métricas de retry e DLT Kafka
+
+---
+
+# Sprint 13 — PIX Agendado 🚧
+
+A Sprint 13 aplica o workflow **SPEC → arquitetura → implementação → testes → CI** em uma feature real.
+
+- [SPEC Scheduled PIX v1](docs/specs/scheduled-pix-v1/README.md)
+- [ADR-006 — claim atômico no PostgreSQL](docs/adr/ADR-006-scheduled-pix-atomic-claim.md)
+
+Fluxo:
+
+```text
+POST /api/v1/payments/pix/scheduled
+        |
+        v
+Payment status = SCHEDULED
+        |
+        | scheduledAt <= now
+        v
+atomic database claim
+SCHEDULED -> PENDING
+        |
+        v
+Transactional Outbox
+        |
+        v
+Kafka: nexapay.payment.created.v1
+        |
+        v
+Fraud Service
+```
+
+Destaques de engenharia:
+
+- idempotência também no agendamento;
+- `@Future` para impedir execução retroativa na criação;
+- claim atômico para múltiplas instâncias do scheduler;
+- nenhum evento é publicado antes do horário;
+- Outbox é criada somente pelo vencedor do claim;
+- métricas para agendamentos, execuções e claims ignorados;
+- recorrência permanece fora deste primeiro slice e será evoluída separadamente.
 
 ---
 
