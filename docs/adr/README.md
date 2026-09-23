@@ -10,5 +10,6 @@ Este diretório registra decisões arquiteturais relevantes do NexaPay, incluind
 | [ADR-004](ADR-004-observability-slos.md) | Observabilidade, SLOs e alertas | Aceita |
 | [ADR-005](ADR-005-spec-driven-ai-assisted-development.md) | SDD e desenvolvimento assistido por IA | Aceita |
 | [ADR-006](ADR-006-scheduled-pix-atomic-claim.md) | PIX agendado com claim atômico no PostgreSQL | Aceita |
+| [ADR-007](ADR-007-recurring-pix-materialization.md) | Recorrência materializa pagamentos agendados | Aceita |
 
 ADRs tornam explícito não apenas **o que** foi implementado, mas **por que** uma solução foi escolhida e quais custos e riscos foram aceitos.
