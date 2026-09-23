@@ -98,6 +98,23 @@ public interface RecurringPixScheduleRepository extends JpaRepository<RecurringP
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = """
             UPDATE recurring_pix_schedules
+            SET status = 'CANCELLED',
+                next_occurrence_at = NULL,
+                cancelled_at = :cancelledAt,
+                cancellation_reason = :reason,
+                updated_at = :cancelledAt
+            WHERE id = :id
+              AND status = 'ACTIVE'
+            """, nativeQuery = true)
+    int cancelActiveSchedule(
+            @Param("id") UUID id,
+            @Param("reason") String reason,
+            @Param("cancelledAt") OffsetDateTime cancelledAt
+    );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            UPDATE recurring_pix_schedules
             SET next_occurrence_at = NULL,
                 remaining_occurrences = 0,
                 status = 'COMPLETED',
