@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -63,6 +64,9 @@ class FraudReviewQueueIntegrationTest {
 
     @Autowired
     private PaymentRepository paymentRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     private ExecutorService executor;
 
@@ -134,15 +138,20 @@ class FraudReviewQueueIntegrationTest {
         Payment payment = saveReviewPayment("expired");
         service.openCase(payment.getId(), OffsetDateTime.now());
 
-        OffsetDateTime oldNow = OffsetDateTime.now().minusMinutes(30);
-        OffsetDateTime expiredAt = OffsetDateTime.now().minusMinutes(15);
+        service.claim(payment.getId(), "expired-owner");
 
-        assertThat(caseRepository.claim(
-                payment.getId(),
-                "expired-owner",
-                oldNow,
-                expiredAt
-        )).isEqualTo(1);
+        OffsetDateTime expiredAt = OffsetDateTime.now().minusMinutes(1);
+        int updated = jdbcTemplate.update(
+                """
+                UPDATE fraud_review_cases
+                SET claim_expires_at = ?
+                WHERE payment_id = ?
+                """,
+                expiredAt,
+                payment.getId()
+        );
+
+        assertThat(updated).isEqualTo(1);
 
         var takeover = service.claim(
                 payment.getId(),
