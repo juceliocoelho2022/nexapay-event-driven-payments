@@ -21,7 +21,9 @@ public class RecurringPixMaterializer {
         this.service = service;
     }
 
-    @Scheduled(\n            fixedDelayString = "${nexapay.payment.recurring.fixed-delay-ms:5000}",\n            initialDelayString = "${nexapay.payment.recurring.initial-delay-ms:0}")
+    @Scheduled(
+            fixedDelayString = "${nexapay.payment.recurring.fixed-delay-ms:5000}",
+            initialDelayString = "${nexapay.payment.recurring.initial-delay-ms:0}")
     public void materializeDueOccurrences() {
         OffsetDateTime now = OffsetDateTime.now();
 
