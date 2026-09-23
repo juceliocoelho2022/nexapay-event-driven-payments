@@ -71,6 +71,7 @@ Gauges:
 
 - `nexapay.payment.fraud_review_sla.open_cases`
 - `nexapay.payment.fraud_review_sla.overdue_cases`
+- `nexapay.payment.fraud_review_sla.overdue_p1_cases`
 - `nexapay.payment.fraud_review_sla.priority_cases{priority=P1|P2|P3}`
 - `nexapay.payment.fraud_review_sla.oldest_open_age_seconds`
 
