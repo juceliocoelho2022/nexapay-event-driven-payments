@@ -15,14 +15,17 @@ public class FraudDecisionStateMachineService {
 
     private final PaymentRepository paymentRepository;
     private final ProcessedFraudDecisionEventRepository processedRepository;
+    private final FraudReviewQueueService fraudReviewQueueService;
     private final MeterRegistry meterRegistry;
 
     public FraudDecisionStateMachineService(
             PaymentRepository paymentRepository,
             ProcessedFraudDecisionEventRepository processedRepository,
+            FraudReviewQueueService fraudReviewQueueService,
             MeterRegistry meterRegistry) {
         this.paymentRepository = paymentRepository;
         this.processedRepository = processedRepository;
+        this.fraudReviewQueueService = fraudReviewQueueService;
         this.meterRegistry = meterRegistry;
     }
 
@@ -65,6 +68,13 @@ public class FraudDecisionStateMachineService {
                             + event.paymentId()
                             + ", decision="
                             + event.decision()
+            );
+        }
+
+        if (targetStatus == PaymentStatus.REVIEW) {
+            fraudReviewQueueService.openCase(
+                    event.paymentId(),
+                    processedAt
             );
         }
 
