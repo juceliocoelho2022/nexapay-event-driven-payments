@@ -158,6 +158,26 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
             @Param("cancelledAt") OffsetDateTime cancelledAt
     );
 
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            UPDATE payments
+            SET status = :targetStatus,
+                fraud_decision = :decision,
+                fraud_risk_score = :riskScore,
+                fraud_reason = :reason,
+                fraud_decided_at = :decidedAt
+            WHERE id = :paymentId
+              AND status = 'PENDING'
+            """, nativeQuery = true)
+    int applyFraudDecision(
+            @Param("paymentId") UUID paymentId,
+            @Param("targetStatus") String targetStatus,
+            @Param("decision") String decision,
+            @Param("riskScore") int riskScore,
+            @Param("reason") String reason,
+            @Param("decidedAt") OffsetDateTime decidedAt
+    );
+
     @Query(value = """
             SELECT id
             FROM payments
