@@ -83,7 +83,11 @@ Sprint 8  — API Gateway              ✅ Concluída
 Sprint 9  — Frontend                 ✅ Concluída
 Sprint 10 — CI/CD e Cloud            ✅ Concluída
 Sprint 11 — Observabilidade avançada ✅ Concluída
-Sprint 12 — Production Hardening     🚧 Em evolução\nSprint 13 — PIX Agendado             ✅ Concluída\nSprint 14 — PIX Recorrente           ✅ Concluída\nSprint 15 — Cancelamento e Auditoria  🚧 Em evolução
+Sprint 12 — Production Hardening     🚧 Em evolução
+Sprint 13 — PIX Agendado             ✅ Concluída
+Sprint 14 — PIX Recorrente           ✅ Concluída
+Sprint 15 — Cancelamento e Auditoria ✅ Concluída
+Sprint 16 — Fraud Decision State     🚧 Em evolução
 ```
 
 ---
@@ -379,7 +383,7 @@ Destaques:
 
 ---
 
-# Sprint 15 — Cancelamento e Auditoria 🚧
+# Sprint 15 — Cancelamento e Auditoria ✅
 
 A Sprint 15 adiciona **cancelamento concorrente, segregação de permissão e trilha imutável de auditoria**.
 
@@ -412,6 +416,51 @@ Destaques:
 - endpoints de histórico protegidos por `PAYMENT_READ`;
 - métricas de sucesso, rejeição e pagamentos afetados;
 - Testcontainers valida corrida real entre cancelamento e execução.
+
+---
+
+# Sprint 16 — Fraud Decision + Payment State Machine 🚧
+
+A Sprint 16 fecha o ciclo assíncrono entre Payment e Fraud sem dual write.
+
+- [SPEC Fraud Decision State Machine v1](docs/specs/fraud-decision-state-machine-v1/README.md)
+- [ADR-009 — Fraud Decision via Outbox](docs/adr/ADR-009-fraud-decision-outbox-state-machine.md)
+
+```text
+Payment PENDING
+      |
+      | PaymentCreated
+      v
+Kafka
+      |
+      v
+Fraud Service
+      |
+      +-- FraudDecision
+      +-- Transactional Outbox
+      |
+      | FraudDecisionMade
+      v
+Kafka
+      |
+      v
+Payment Service
+      |
+      +-- APPROVED -> COMPLETED
+      +-- REVIEW   -> REVIEW
+      +-- BLOCKED  -> REJECTED
+```
+
+Destaques:
+
+- Transactional Outbox também no Fraud Service;
+- topic `nexapay.fraud.decision-made.v1`;
+- deduplicação por `eventId` e `fraudDecisionId`;
+- state transition somente a partir de `PENDING`;
+- retry/DLT para eventos inválidos ou fora de estado;
+- decisão, score, motivo e instante persistidos no pagamento;
+- correlation/trace context preservado na Outbox;
+- testes concorrentes com PostgreSQL 17/Testcontainers.
 
 ---
 
