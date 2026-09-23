@@ -9,7 +9,7 @@ CREATE TABLE recurring_pix_schedules (
     status VARCHAR(20) NOT NULL,
     next_occurrence_at TIMESTAMPTZ,
     remaining_occurrences INTEGER NOT NULL,
-    anchor_day SMALLINT NOT NULL,
+    anchor_day INTEGER NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
 
