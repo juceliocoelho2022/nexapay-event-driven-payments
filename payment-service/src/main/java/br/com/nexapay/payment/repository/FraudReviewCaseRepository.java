@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -109,6 +110,7 @@ public interface FraudReviewCaseRepository
             @Param("resolvedAt") OffsetDateTime resolvedAt
     );
 
+    @org.springframework.transaction.annotation.Transactional
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = """
             UPDATE fraud_review_cases
@@ -148,5 +150,5 @@ public interface FraudReviewCaseRepository
             FROM fraud_review_cases
             WHERE status = 'OPEN'
             """, nativeQuery = true)
-    OffsetDateTime findOldestOpenCaseAt();
+    Instant findOldestOpenCaseAt();
 }
