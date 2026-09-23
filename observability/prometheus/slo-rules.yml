@@ -30,6 +30,15 @@ groups:
       - record: nexapay:sli:outbox_pending
         expr: sum(nexapay_outbox_batch_pending)
 
+      - record: nexapay:sli:fraud_review_open_cases
+        expr: sum(nexapay_payment_fraud_review_sla_open_cases)
+
+      - record: nexapay:sli:fraud_review_overdue_cases
+        expr: sum(nexapay_payment_fraud_review_sla_overdue_cases)
+
+      - record: nexapay:sli:fraud_review_overdue_p1_cases
+        expr: sum(nexapay_payment_fraud_review_sla_overdue_p1_cases)
+
   - name: nexapay-slo-alerts
     interval: 15s
     rules:
@@ -82,3 +91,34 @@ groups:
         annotations:
           summary: "NexaPay published one or more records to a DLT"
           description: "A Kafka record reached a Dead Letter Topic during the last 10 minutes. Inspect the source exception before any controlled replay."
+
+      - alert: NexaPayFraudReviewSlaBreached
+        expr: nexapay:sli:fraud_review_overdue_cases > 0
+        for: 2m
+        labels:
+          severity: warning
+          category: fraud-review
+        annotations:
+          summary: "Fraud review case breached SLA"
+          description: "At least one open fraud review case has remained past its SLA for 2 minutes."
+
+      - alert: NexaPayFraudReviewP1SlaBreached
+        expr: nexapay:sli:fraud_review_overdue_p1_cases > 0
+        for: 0m
+        labels:
+          severity: critical
+          category: fraud-review
+        annotations:
+          summary: "P1 fraud review case breached SLA"
+          description: "At least one critical P1 fraud review case is past its SLA deadline."
+
+      - alert: NexaPayFraudReviewBacklogHigh
+        expr: nexapay:sli:fraud_review_open_cases > 20
+        for: 5m
+        labels:
+          severity: warning
+          category: fraud-review
+        annotations:
+          summary: "Fraud review backlog above 20 cases"
+          description: "The fraud review queue has held more than 20 open cases for 5 minutes."
+
