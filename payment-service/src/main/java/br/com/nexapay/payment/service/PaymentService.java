@@ -2,6 +2,7 @@ package br.com.nexapay.payment.service;
 
 import br.com.nexapay.payment.api.CreatePixPaymentRequest;
 import br.com.nexapay.payment.api.PaymentResponse;
+import br.com.nexapay.payment.api.SchedulePixPaymentRequest;
 import br.com.nexapay.payment.domain.OutboxEvent;
 import br.com.nexapay.payment.domain.Payment;
 import br.com.nexapay.payment.domain.PaymentStatus;
@@ -22,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -66,6 +68,23 @@ public class PaymentService {
                 .orElseGet(() -> createOrLoadPayment(idempotencyKey, request));
     }
 
+    @Transactional
+    public PaymentResponse schedulePixPayment(
+            String idempotencyKey,
+            SchedulePixPaymentRequest request) {
+
+        return paymentRepository.findByIdempotencyKey(idempotencyKey)
+                .map(existing -> {
+                    meterRegistry.counter(
+                            "nexapay.payment.idempotency.reused",
+                            "source",
+                            "scheduled_precheck"
+                    ).increment();
+                    return paymentMapper.toResponse(existing);
+                })
+                .orElseGet(() -> scheduleOrLoadPayment(idempotencyKey, request));
+    }
+
     @Transactional(readOnly = true)
     public PaymentResponse findById(UUID id) {
         Payment payment = paymentRepository.findById(id)
@@ -74,13 +93,35 @@ public class PaymentService {
         return paymentMapper.toResponse(payment);
     }
 
+    @Transactional(readOnly = true)
+    public List<UUID> findDueScheduledPaymentIds(OffsetDateTime now, int batchSize) {
+        return paymentRepository.findDueScheduledPaymentIds(now, batchSize);
+    }
+
+    @Transactional
+    public boolean executeDueScheduledPayment(UUID paymentId, OffsetDateTime executionTime) {
+        int claimed = paymentRepository.claimScheduledPaymentForExecution(paymentId, executionTime);
+
+        if (claimed == 0) {
+            meterRegistry.counter("nexapay.payment.scheduled.claim.skipped").increment();
+            return false;
+        }
+
+        Payment payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new PaymentNotFoundException(paymentId));
+
+        outboxEventRepository.save(buildPaymentCreatedOutbox(payment, executionTime));
+        meterRegistry.counter("nexapay.payment.scheduled.executed").increment();
+
+        return true;
+    }
+
     private PaymentResponse createOrLoadPayment(
             String idempotencyKey,
             CreatePixPaymentRequest request) {
 
         OffsetDateTime now = OffsetDateTime.now();
         UUID paymentId = UUID.randomUUID();
-        UUID eventId = UUID.randomUUID();
 
         Payment payment = new Payment(
                 paymentId,
@@ -113,13 +154,72 @@ public class PaymentService {
                     ));
         }
 
-        PaymentCreatedEvent event = new PaymentCreatedEvent(
-                eventId,
+        outboxEventRepository.save(buildPaymentCreatedOutbox(payment, now));
+        meterRegistry.counter("nexapay.payment.created").increment();
+
+        return paymentMapper.toResponse(payment);
+    }
+
+    private PaymentResponse scheduleOrLoadPayment(
+            String idempotencyKey,
+            SchedulePixPaymentRequest request) {
+
+        OffsetDateTime now = OffsetDateTime.now();
+        UUID paymentId = UUID.randomUUID();
+
+        Payment payment = new Payment(
                 paymentId,
+                idempotencyKey,
                 request.payerAccountId(),
                 request.pixKey(),
                 request.amount(),
-                now
+                request.description(),
+                PaymentStatus.SCHEDULED,
+                now,
+                request.scheduledAt(),
+                null
+        );
+
+        int inserted = paymentRepository.insertScheduledIfIdempotencyKeyAbsent(
+                paymentId,
+                idempotencyKey,
+                request.payerAccountId(),
+                request.pixKey(),
+                request.amount(),
+                request.description(),
+                now,
+                request.scheduledAt()
+        );
+
+        if (inserted == 0) {
+            meterRegistry.counter(
+                    "nexapay.payment.idempotency.reused",
+                    "source",
+                    "scheduled_concurrent_conflict"
+            ).increment();
+
+            return paymentRepository.findByIdempotencyKey(idempotencyKey)
+                    .map(paymentMapper::toResponse)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "Idempotency key was claimed but scheduled payment could not be loaded: "
+                                    + idempotencyKey
+                    ));
+        }
+
+        meterRegistry.counter("nexapay.payment.scheduled").increment();
+        return paymentMapper.toResponse(payment);
+    }
+
+    private OutboxEvent buildPaymentCreatedOutbox(Payment payment, OffsetDateTime occurredAt) {
+        UUID eventId = UUID.randomUUID();
+
+        PaymentCreatedEvent event = new PaymentCreatedEvent(
+                eventId,
+                payment.getId(),
+                payment.getPayerAccountId(),
+                payment.getPixKey(),
+                payment.getAmount(),
+                occurredAt
         );
 
         String correlationId = MDC.get(CorrelationIdFilter.MDC_KEY);
@@ -129,22 +229,17 @@ public class PaymentService {
 
         Map<String, String> traceContext = captureTraceContext();
 
-        OutboxEvent outbox = new OutboxEvent(
+        return new OutboxEvent(
                 eventId,
-                paymentId,
+                payment.getId(),
                 "PaymentCreated",
                 toJson(event),
                 correlationId,
                 traceContext.get("traceparent"),
                 traceContext.get("tracestate"),
                 false,
-                now
+                occurredAt
         );
-
-        outboxEventRepository.save(outbox);
-        meterRegistry.counter("nexapay.payment.created").increment();
-
-        return paymentMapper.toResponse(payment);
     }
 
     private Map<String, String> captureTraceContext() {
