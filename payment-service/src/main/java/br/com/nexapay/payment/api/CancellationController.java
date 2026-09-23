@@ -1,11 +1,13 @@
 package br.com.nexapay.payment.api;
 
+import br.com.nexapay.payment.domain.CancellationTargetType;
 import br.com.nexapay.payment.service.CancellationService;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -28,6 +30,26 @@ public class CancellationController {
                 paymentId,
                 request.reason(),
                 authentication.getName()
+        );
+    }
+
+    @GetMapping("/api/v1/payments/{paymentId}/cancellations")
+    @PreAuthorize("hasAuthority('PAYMENT_READ')")
+    public List<CancellationAuditResponse> paymentCancellationHistory(
+            @PathVariable UUID paymentId) {
+        return cancellationService.findHistory(
+                CancellationTargetType.PAYMENT,
+                paymentId
+        );
+    }
+
+    @GetMapping("/api/v1/payments/pix/recurring/{scheduleId}/cancellations")
+    @PreAuthorize("hasAuthority('PAYMENT_READ')")
+    public List<CancellationAuditResponse> recurringCancellationHistory(
+            @PathVariable UUID scheduleId) {
+        return cancellationService.findHistory(
+                CancellationTargetType.RECURRING_SCHEDULE,
+                scheduleId
         );
     }
 
