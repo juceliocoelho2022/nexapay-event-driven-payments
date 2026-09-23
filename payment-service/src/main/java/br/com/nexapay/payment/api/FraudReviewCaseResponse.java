@@ -1,5 +1,7 @@
 package br.com.nexapay.payment.api;
 
+import br.com.nexapay.payment.domain.FraudReviewPriority;
+
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -14,6 +16,12 @@ public record FraudReviewCaseResponse(
         String claimedBy,
         OffsetDateTime claimedAt,
         OffsetDateTime claimExpiresAt,
-        boolean available
+        boolean available,
+        FraudReviewPriority priority,
+        OffsetDateTime slaDueAt,
+        boolean overdue,
+        OffsetDateTime escalatedAt,
+        long ageSeconds,
+        long remainingSlaSeconds
 ) {
 }
