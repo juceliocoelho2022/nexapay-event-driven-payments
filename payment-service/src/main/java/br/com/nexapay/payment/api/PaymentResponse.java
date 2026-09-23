@@ -13,6 +13,8 @@ public record PaymentResponse(
         BigDecimal amount,
         String description,
         PaymentStatus status,
-        OffsetDateTime createdAt
+        OffsetDateTime createdAt,
+        OffsetDateTime scheduledAt,
+        OffsetDateTime executedAt
 ) {
 }
