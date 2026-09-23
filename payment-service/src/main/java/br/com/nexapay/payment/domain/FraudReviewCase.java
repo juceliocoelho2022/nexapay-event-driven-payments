@@ -35,6 +35,16 @@ public class FraudReviewCase {
     @Column(length = 20)
     private String resolution;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 10)
+    private FraudReviewPriority priority;
+
+    @Column(name = "sla_due_at", nullable = false)
+    private OffsetDateTime slaDueAt;
+
+    @Column(name = "escalated_at")
+    private OffsetDateTime escalatedAt;
+
     protected FraudReviewCase() {
     }
 
