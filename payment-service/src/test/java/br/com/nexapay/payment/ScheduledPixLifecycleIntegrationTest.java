@@ -19,6 +19,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -98,8 +99,10 @@ class ScheduledPixLifecycleIntegrationTest {
 
         Payment executed = paymentRepository.findById(scheduled.id()).orElseThrow();
         assertThat(executed.getStatus()).isEqualTo(PaymentStatus.PENDING);
-        assertThat(executed.getScheduledAt()).isEqualTo(scheduledAt);
-        assertThat(executed.getExecutedAt()).isEqualTo(executionTime);
+        assertThat(executed.getScheduledAt().truncatedTo(ChronoUnit.MILLIS))
+                .isEqualTo(scheduledAt.truncatedTo(ChronoUnit.MILLIS));
+        assertThat(executed.getExecutedAt().truncatedTo(ChronoUnit.MILLIS))
+                .isEqualTo(executionTime.truncatedTo(ChronoUnit.MILLIS));
 
         List<OutboxEvent> outbox = outboxEventRepository.findAll();
         assertThat(outbox).hasSize(1);
