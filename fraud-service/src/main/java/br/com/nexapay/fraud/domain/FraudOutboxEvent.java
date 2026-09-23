@@ -1,0 +1,81 @@
+package br.com.nexapay.fraud.domain;
+
+import jakarta.persistence.*;
+
+import java.time.OffsetDateTime;
+import java.util.UUID;
+
+@Entity
+@Table(name = "fraud_outbox_events")
+public class FraudOutboxEvent {
+
+    @Id
+    private UUID id;
+
+    @Column(name = "aggregate_id", nullable = false)
+    private UUID aggregateId;
+
+    @Column(name = "event_type", nullable = false, length = 120)
+    private String eventType;
+
+    @Column(nullable = false, columnDefinition = "text")
+    private String payload;
+
+    @Column(name = "correlation_id", length = 128)
+    private String correlationId;
+
+    @Column(name = "traceparent", length = 255)
+    private String traceParent;
+
+    @Column(name = "tracestate", columnDefinition = "text")
+    private String traceState;
+
+    @Column(nullable = false)
+    private boolean published;
+
+    @Column(name = "created_at", nullable = false)
+    private OffsetDateTime createdAt;
+
+    @Column(name = "published_at")
+    private OffsetDateTime publishedAt;
+
+    protected FraudOutboxEvent() {
+    }
+
+    public FraudOutboxEvent(
+            UUID id,
+            UUID aggregateId,
+            String eventType,
+            String payload,
+            String correlationId,
+            String traceParent,
+            String traceState,
+            boolean published,
+            OffsetDateTime createdAt) {
+        this.id = id;
+        this.aggregateId = aggregateId;
+        this.eventType = eventType;
+        this.payload = payload;
+        this.correlationId = correlationId;
+        this.traceParent = traceParent;
+        this.traceState = traceState;
+        this.published = published;
+        this.createdAt = createdAt;
+    }
+
+    public UUID getId() { return id; }
+    public UUID getAggregateId() { return aggregateId; }
+    public String getEventType() { return eventType; }
+    public String getPayload() { return payload; }
+    public String getCorrelationId() { return correlationId; }
+    public String getTraceParent() { return traceParent; }
+    public String getTraceState() { return traceState; }
+    public boolean isPublished() { return published; }
+    public OffsetDateTime getCreatedAt() { return createdAt; }
+    public OffsetDateTime getPublishedAt() { return publishedAt; }
+
+    public void markPublished() {
+        this.published = true;
+        this.publishedAt = OffsetDateTime.now();
+    }
+}
