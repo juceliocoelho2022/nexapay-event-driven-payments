@@ -160,6 +160,53 @@ class PaymentServiceTest {
     }
 
     @Test
+    void shouldReturnExistingScheduledPaymentWhenIdempotencyKeyAlreadyExists() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        PaymentService service = newService(registry);
+
+        OffsetDateTime scheduledAt = OffsetDateTime.now().plusHours(3);
+        Payment existing = new Payment(
+                UUID.randomUUID(),
+                "schedule-reused",
+                "ACC-4501",
+                "reused@nexapay.test",
+                new BigDecimal("210.00"),
+                "PIX agendado existente",
+                PaymentStatus.SCHEDULED,
+                OffsetDateTime.now(),
+                scheduledAt,
+                null
+        );
+
+        when(paymentRepository.findByIdempotencyKey("schedule-reused"))
+                .thenReturn(Optional.of(existing));
+
+        var response = service.schedulePixPayment(
+                "schedule-reused",
+                scheduleRequest(
+                        "ACC-4501",
+                        "reused@nexapay.test",
+                        "210.00",
+                        "PIX agendado existente",
+                        scheduledAt
+                )
+        );
+
+        assertThat(response.id()).isEqualTo(existing.getId());
+        assertThat(response.status()).isEqualTo(PaymentStatus.SCHEDULED);
+        assertThat(registry.counter(
+                "nexapay.payment.idempotency.reused",
+                "source",
+                "scheduled_precheck"
+        ).count()).isEqualTo(1.0);
+
+        verify(paymentRepository, never()).insertScheduledIfIdempotencyKeyAbsent(
+                any(), anyString(), anyString(), anyString(), any(), any(), any(), any()
+        );
+        verify(outboxEventRepository, never()).save(any());
+    }
+
+    @Test
     void shouldCreateOutboxOnlyWhenScheduledPaymentClaimWins() {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         PaymentService service = newService(registry);
