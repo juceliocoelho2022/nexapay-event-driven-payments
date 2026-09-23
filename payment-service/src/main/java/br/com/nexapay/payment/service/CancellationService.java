@@ -1,5 +1,6 @@
 package br.com.nexapay.payment.service;
 
+import br.com.nexapay.payment.api.CancellationAuditResponse;
 import br.com.nexapay.payment.api.CancellationResponse;
 import br.com.nexapay.payment.domain.CancellationAudit;
 import br.com.nexapay.payment.domain.CancellationTargetType;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -32,6 +34,29 @@ public class CancellationService {
         this.recurringRepository = recurringRepository;
         this.auditRepository = auditRepository;
         this.meterRegistry = meterRegistry;
+    }
+
+    @Transactional(readOnly = true)
+    public List<CancellationAuditResponse> findHistory(
+            CancellationTargetType targetType,
+            UUID targetId) {
+
+        return auditRepository
+                .findByTargetTypeAndTargetIdOrderByCancelledAtDesc(
+                        targetType,
+                        targetId
+                )
+                .stream()
+                .map(audit -> new CancellationAuditResponse(
+                        audit.getId(),
+                        audit.getTargetType(),
+                        audit.getTargetId(),
+                        audit.getReason(),
+                        audit.getActorSubject(),
+                        audit.getCancelledAt(),
+                        audit.getAffectedScheduledPayments()
+                ))
+                .toList();
     }
 
     @Transactional
