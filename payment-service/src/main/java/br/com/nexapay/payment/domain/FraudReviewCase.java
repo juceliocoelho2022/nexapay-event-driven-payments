@@ -46,4 +46,7 @@ public class FraudReviewCase {
     public OffsetDateTime getClaimExpiresAt() { return claimExpiresAt; }
     public OffsetDateTime getResolvedAt() { return resolvedAt; }
     public String getResolution() { return resolution; }
+    public FraudReviewPriority getPriority() { return priority; }
+    public OffsetDateTime getSlaDueAt() { return slaDueAt; }
+    public OffsetDateTime getEscalatedAt() { return escalatedAt; }
 }
