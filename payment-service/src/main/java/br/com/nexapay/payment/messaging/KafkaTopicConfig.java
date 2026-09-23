@@ -15,4 +15,12 @@ public class KafkaTopicConfig {
                 .replicas(1)
                 .build();
     }
+
+    @Bean
+    public NewTopic fraudDecisionMadeTopic() {
+        return TopicBuilder.name(KafkaTopics.FRAUD_DECISION_MADE)
+                .partitions(3)
+                .replicas(1)
+                .build();
+    }
 }

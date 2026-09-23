@@ -17,7 +17,11 @@ public class PaymentMapper {
                 payment.getStatus(),
                 payment.getCreatedAt(),
                 payment.getScheduledAt(),
-                payment.getExecutedAt()
+                payment.getExecutedAt(),
+                payment.getFraudDecision(),
+                payment.getFraudRiskScore(),
+                payment.getFraudReason(),
+                payment.getFraudDecidedAt()
         );
     }
 }

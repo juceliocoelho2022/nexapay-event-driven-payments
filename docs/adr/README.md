@@ -12,5 +12,6 @@ Este diretório registra decisões arquiteturais relevantes do NexaPay, incluind
 | [ADR-006](ADR-006-scheduled-pix-atomic-claim.md) | PIX agendado com claim atômico no PostgreSQL | Aceita |
 | [ADR-007](ADR-007-recurring-pix-materialization.md) | Recorrência materializa pagamentos agendados | Aceita |
 | [ADR-008](ADR-008-atomic-cancellation-state-transition.md) | Cancelamento por transição atômica de estado | Aceita |
+| [ADR-009](ADR-009-fraud-decision-outbox-state-machine.md) | Fraud Decision via Outbox e máquina de estados | Aceita |
 
 ADRs tornam explícito não apenas **o que** foi implementado, mas **por que** uma solução foi escolhida e quais custos e riscos foram aceitos.

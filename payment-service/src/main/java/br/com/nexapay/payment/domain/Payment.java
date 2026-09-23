@@ -53,6 +53,18 @@ public class Payment {
     @Column(name = "recurring_occurrence_at")
     private OffsetDateTime recurringOccurrenceAt;
 
+    @Column(name = "fraud_decision", length = 20)
+    private String fraudDecision;
+
+    @Column(name = "fraud_risk_score")
+    private Integer fraudRiskScore;
+
+    @Column(name = "fraud_reason", length = 500)
+    private String fraudReason;
+
+    @Column(name = "fraud_decided_at")
+    private OffsetDateTime fraudDecidedAt;
+
     protected Payment() {
     }
 
@@ -147,4 +159,8 @@ public class Payment {
     public OffsetDateTime getExecutedAt() { return executedAt; }
     public UUID getRecurringScheduleId() { return recurringScheduleId; }
     public OffsetDateTime getRecurringOccurrenceAt() { return recurringOccurrenceAt; }
+    public String getFraudDecision() { return fraudDecision; }
+    public Integer getFraudRiskScore() { return fraudRiskScore; }
+    public String getFraudReason() { return fraudReason; }
+    public OffsetDateTime getFraudDecidedAt() { return fraudDecidedAt; }
 }
