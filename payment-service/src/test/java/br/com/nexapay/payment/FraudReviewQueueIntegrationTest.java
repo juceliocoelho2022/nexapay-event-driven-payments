@@ -111,12 +111,20 @@ class FraudReviewQueueIntegrationTest {
                         FraudReviewPriority.P3
                 );
 
-        assertThat(queue.get(0).slaDueAt())
-                .isEqualTo(openedAt.plusMinutes(15));
-        assertThat(queue.get(1).slaDueAt())
-                .isEqualTo(openedAt.plusMinutes(30));
-        assertThat(queue.get(2).slaDueAt())
-                .isEqualTo(openedAt.plusMinutes(60));
+        assertThat(java.time.Duration.between(
+                queue.get(0).openedAt(),
+                queue.get(0).slaDueAt()
+        )).isEqualTo(java.time.Duration.ofMinutes(15));
+
+        assertThat(java.time.Duration.between(
+                queue.get(1).openedAt(),
+                queue.get(1).slaDueAt()
+        )).isEqualTo(java.time.Duration.ofMinutes(30));
+
+        assertThat(java.time.Duration.between(
+                queue.get(2).openedAt(),
+                queue.get(2).slaDueAt()
+        )).isEqualTo(java.time.Duration.ofMinutes(60));
     }
 
     @Test
