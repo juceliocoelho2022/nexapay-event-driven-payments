@@ -135,6 +135,26 @@ class PaymentSecurityIntegrationTest {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    void shouldRejectScheduledPaymentInThePast() throws Exception {
+        OffsetDateTime scheduledAt = OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(1);
+
+        mockMvc.perform(post("/api/v1/payments/pix/scheduled")
+                        .header("Authorization", "Bearer " + token(List.of("PAYMENT_CREATE")))
+                        .header("Idempotency-Key", "security-scheduled-past")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "payerAccountId": "ACC-SECURITY-01",
+                                  "pixKey": "security@nexapay.com",
+                                  "amount": 25.00,
+                                  "description": "Invalid scheduled time",
+                                  "scheduledAt": "%s"
+                                }
+                                """.formatted(scheduledAt)))
+                .andExpect(status().isBadRequest());
+    }
+
     private PaymentResponse paymentResponse(UUID paymentId) {
         return new PaymentResponse(
                 paymentId,
