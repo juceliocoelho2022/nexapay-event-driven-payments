@@ -4,6 +4,7 @@ import br.com.nexapay.payment.domain.ManualFraudReviewAudit;
 import br.com.nexapay.payment.domain.ManualFraudReviewDecision;
 import br.com.nexapay.payment.domain.Payment;
 import br.com.nexapay.payment.domain.PaymentStatus;
+import br.com.nexapay.payment.exception.FraudReviewCaseConflictException;
 import br.com.nexapay.payment.exception.ManualFraudReviewConflictException;
 import br.com.nexapay.payment.repository.FraudReviewCaseRepository;
 import br.com.nexapay.payment.repository.ManualFraudReviewAuditRepository;
@@ -134,7 +135,7 @@ class ManualFraudReviewLifecycleIntegrationTest {
                 ManualFraudReviewDecision.APPROVE,
                 "Reviewer sem ownership",
                 "other-reviewer"
-        )).isInstanceOf(RuntimeException.class);
+        )).isInstanceOf(FraudReviewCaseConflictException.class);
 
         assertThat(auditRepository.count()).isZero();
         assertThat(paymentRepository.findById(payment.getId()).orElseThrow().getStatus())
