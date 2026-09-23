@@ -65,6 +65,18 @@ public class Payment {
     @Column(name = "fraud_decided_at")
     private OffsetDateTime fraudDecidedAt;
 
+    @Column(name = "manual_review_decision", length = 20)
+    private String manualReviewDecision;
+
+    @Column(name = "manual_review_reason", length = 500)
+    private String manualReviewReason;
+
+    @Column(name = "manual_reviewer_subject", length = 255)
+    private String manualReviewerSubject;
+
+    @Column(name = "manual_reviewed_at")
+    private OffsetDateTime manualReviewedAt;
+
     protected Payment() {
     }
 
@@ -163,4 +175,8 @@ public class Payment {
     public Integer getFraudRiskScore() { return fraudRiskScore; }
     public String getFraudReason() { return fraudReason; }
     public OffsetDateTime getFraudDecidedAt() { return fraudDecidedAt; }
+    public String getManualReviewDecision() { return manualReviewDecision; }
+    public String getManualReviewReason() { return manualReviewReason; }
+    public String getManualReviewerSubject() { return manualReviewerSubject; }
+    public OffsetDateTime getManualReviewedAt() { return manualReviewedAt; }
 }

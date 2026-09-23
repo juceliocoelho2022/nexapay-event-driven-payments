@@ -87,7 +87,8 @@ Sprint 12 — Production Hardening     🚧 Em evolução
 Sprint 13 — PIX Agendado             ✅ Concluída
 Sprint 14 — PIX Recorrente           ✅ Concluída
 Sprint 15 — Cancelamento e Auditoria ✅ Concluída
-Sprint 16 — Fraud Decision State     🚧 Em evolução
+Sprint 16 — Fraud Decision State     ✅ Concluída
+Sprint 17 — Manual Fraud Review       🚧 Em evolução
 ```
 
 ---
@@ -224,6 +225,8 @@ POST /api/v1/payments/pix/recurring/{id}/cancel
 GET  /api/v1/payments/{id}
 GET  /api/v1/payments/{id}/cancellations
 GET  /api/v1/payments/pix/recurring/{id}/cancellations
+POST /api/v1/payments/{id}/fraud-review
+GET  /api/v1/payments/{id}/fraud-review/history
 ```
 
 A criação utiliza `Idempotency-Key`, Transactional Outbox e publica o evento:
@@ -419,7 +422,7 @@ Destaques:
 
 ---
 
-# Sprint 16 — Fraud Decision + Payment State Machine 🚧
+# Sprint 16 — Fraud Decision + Payment State Machine ✅
 
 A Sprint 16 fecha o ciclo assíncrono entre Payment e Fraud sem dual write.
 
@@ -461,6 +464,38 @@ Destaques:
 - decisão, score, motivo e instante persistidos no pagamento;
 - correlation/trace context preservado na Outbox;
 - testes concorrentes com PostgreSQL 17/Testcontainers.
+
+---
+
+# Sprint 17 — Manual Fraud Review 🚧
+
+A Sprint 17 fecha o estado `REVIEW` com decisão humana segura e auditável.
+
+- [SPEC Manual Fraud Review v1](docs/specs/manual-fraud-review-v1/README.md)
+- [ADR-010 — revisão manual por transição atômica](docs/adr/ADR-010-manual-fraud-review-atomic-transition.md)
+
+```text
+Fraud Service
+    |
+    | REVIEW
+    v
+Payment REVIEW
+    |
+    +-- APPROVE --> COMPLETED
+    |
+    +-- REJECT ---> REJECTED
+```
+
+Destaques:
+
+- authority dedicada `FRAUD_REVIEW`;
+- bootstrap atual concede a permissão apenas a `ROLE_ADMIN`;
+- `REVIEW -> COMPLETED/REJECTED` por conditional update;
+- apenas uma revisão pode vencer em concorrência;
+- auditoria imutável com reviewer, motivo, decisão e transição;
+- histórico protegido por `PAYMENT_READ`;
+- decisão automática original de fraude permanece preservada;
+- Testcontainers valida disputa real APPROVE x REJECT no PostgreSQL 17.
 
 ---
 
@@ -680,7 +715,6 @@ powershell -ExecutionPolicy Bypass -File .\scripts\test-sprint7-observability.ps
 - JWT usa HS256 com segredo compartilhado no ambiente atual;
 - não há refresh token, revogação, password reset ou MFA;
 - não há object-level authorization/ownership de conta ou pagamento;
-- a decisão do Fraud Service não atualiza automaticamente o Payment Service;
 - Kafka e Outbox operam com semântica at-least-once;
 - DLT e offset commit não participam de uma única transação distribuída;
 - replay de DLT é operacional e controlado;
