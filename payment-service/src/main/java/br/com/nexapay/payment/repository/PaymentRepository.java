@@ -128,6 +128,36 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
             @Param("recurringOccurrenceAt") OffsetDateTime recurringOccurrenceAt
     );
 
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            UPDATE payments
+            SET status = 'CANCELLED',
+                cancelled_at = :cancelledAt,
+                cancellation_reason = :reason
+            WHERE id = :id
+              AND status = 'SCHEDULED'
+            """, nativeQuery = true)
+    int cancelScheduledPayment(
+            @Param("id") UUID id,
+            @Param("reason") String reason,
+            @Param("cancelledAt") OffsetDateTime cancelledAt
+    );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            UPDATE payments
+            SET status = 'CANCELLED',
+                cancelled_at = :cancelledAt,
+                cancellation_reason = :reason
+            WHERE recurring_schedule_id = :scheduleId
+              AND status = 'SCHEDULED'
+            """, nativeQuery = true)
+    int cancelScheduledPaymentsForRecurringSchedule(
+            @Param("scheduleId") UUID scheduleId,
+            @Param("reason") String reason,
+            @Param("cancelledAt") OffsetDateTime cancelledAt
+    );
+
     @Query(value = """
             SELECT id
             FROM payments
