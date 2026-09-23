@@ -21,7 +21,9 @@ public class ScheduledPaymentExecutor {
         this.paymentService = paymentService;
     }
 
-    @Scheduled(\n            fixedDelayString = "${nexapay.payment.scheduler.fixed-delay-ms:5000}",\n            initialDelayString = "${nexapay.payment.scheduler.initial-delay-ms:0}")
+    @Scheduled(
+            fixedDelayString = "${nexapay.payment.scheduler.fixed-delay-ms:5000}",
+            initialDelayString = "${nexapay.payment.scheduler.initial-delay-ms:0}")
     public void executeDuePayments() {
         OffsetDateTime now = OffsetDateTime.now();
 
