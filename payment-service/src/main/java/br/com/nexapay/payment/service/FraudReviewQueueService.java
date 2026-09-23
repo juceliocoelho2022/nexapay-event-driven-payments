@@ -2,7 +2,7 @@ package br.com.nexapay.payment.service;
 
 import br.com.nexapay.payment.api.FraudReviewCaseResponse;
 import br.com.nexapay.payment.domain.FraudReviewCase;
-import br.com.nexapay.payment.domain.FraudReviewCaseStatus;
+import br.com.nexapay.payment.domain.FraudReviewPriority;
 import br.com.nexapay.payment.domain.Payment;
 import br.com.nexapay.payment.exception.FraudReviewCaseConflictException;
 import br.com.nexapay.payment.exception.FraudReviewCaseNotFoundException;
@@ -25,43 +25,66 @@ public class FraudReviewQueueService {
 
     private final FraudReviewCaseRepository caseRepository;
     private final PaymentRepository paymentRepository;
+    private final FraudReviewSlaPolicy slaPolicy;
     private final MeterRegistry meterRegistry;
     private final Duration leaseDuration;
 
     public FraudReviewQueueService(
             FraudReviewCaseRepository caseRepository,
             PaymentRepository paymentRepository,
+            FraudReviewSlaPolicy slaPolicy,
             MeterRegistry meterRegistry,
             @Value("${nexapay.payment.fraud-review.lease-duration:15m}")
             Duration leaseDuration) {
         this.caseRepository = caseRepository;
         this.paymentRepository = paymentRepository;
+        this.slaPolicy = slaPolicy;
         this.meterRegistry = meterRegistry;
         this.leaseDuration = leaseDuration;
     }
 
     @Transactional
     public void openCase(UUID paymentId, OffsetDateTime openedAt) {
+        Payment payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Cannot open fraud review case for missing payment: "
+                                + paymentId
+                ));
+
+        FraudReviewPriority priority = slaPolicy.priority(
+                payment.getFraudRiskScore(),
+                payment.getAmount()
+        );
+
+        OffsetDateTime slaDueAt = openedAt.plus(
+                slaPolicy.slaFor(priority)
+        );
+
         int inserted = caseRepository.insertOpenCaseIfAbsent(
                 paymentId,
-                openedAt
+                openedAt,
+                priority.name(),
+                slaDueAt
         );
 
         if (inserted == 1) {
             meterRegistry.counter(
-                    "nexapay.payment.fraud_review_queue.opened"
+                    "nexapay.payment.fraud_review_queue.opened",
+                    "priority",
+                    priority.name()
             ).increment();
         }
     }
 
     @Transactional(readOnly = true)
-    public List<FraudReviewCaseResponse> listOpenCases() {
-        OffsetDateTime now = OffsetDateTime.now();
+    public List<FraudReviewCaseResponse> listOpenCases(
+            FraudReviewPriority priority,
+            Boolean overdue,
+            Boolean available) {
 
+        OffsetDateTime now = OffsetDateTime.now();
         List<FraudReviewCase> cases =
-                caseRepository.findByStatusOrderByOpenedAtAsc(
-                        FraudReviewCaseStatus.OPEN
-                );
+                caseRepository.findOpenCasesOrdered();
 
         Map<UUID, Payment> payments = new LinkedHashMap<>();
         paymentRepository.findAllById(
@@ -76,6 +99,18 @@ public class FraudReviewQueueService {
                         payments.get(reviewCase.getPaymentId()),
                         now
                 ))
+                .filter(response ->
+                        priority == null
+                                || response.priority() == priority
+                )
+                .filter(response ->
+                        overdue == null
+                                || response.overdue() == overdue
+                )
+                .filter(response ->
+                        available == null
+                                || response.available() == available
+                )
                 .toList();
     }
 
@@ -205,10 +240,26 @@ public class FraudReviewQueueService {
             );
         }
 
-        boolean available =
+        boolean isAvailable =
                 reviewCase.getClaimedBy() == null
                         || reviewCase.getClaimExpiresAt() == null
                         || !reviewCase.getClaimExpiresAt().isAfter(now);
+
+        boolean isOverdue =
+                !reviewCase.getSlaDueAt().isAfter(now);
+
+        long ageSeconds = Math.max(
+                0,
+                Duration.between(
+                        reviewCase.getOpenedAt(),
+                        now
+                ).toSeconds()
+        );
+
+        long remainingSlaSeconds = Duration.between(
+                now,
+                reviewCase.getSlaDueAt()
+        ).toSeconds();
 
         return new FraudReviewCaseResponse(
                 payment.getId(),
@@ -220,7 +271,13 @@ public class FraudReviewQueueService {
                 reviewCase.getClaimedBy(),
                 reviewCase.getClaimedAt(),
                 reviewCase.getClaimExpiresAt(),
-                available
+                isAvailable,
+                reviewCase.getPriority(),
+                reviewCase.getSlaDueAt(),
+                isOverdue,
+                reviewCase.getEscalatedAt(),
+                ageSeconds,
+                remainingSlaSeconds
         );
     }
 }

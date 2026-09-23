@@ -1,6 +1,7 @@
 package br.com.nexapay.payment.api;
 
 import br.com.nexapay.payment.config.PaymentSecurityConfig;
+import br.com.nexapay.payment.domain.FraudReviewPriority;
 import br.com.nexapay.payment.service.FraudReviewQueueService;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import org.junit.jupiter.api.Test;
@@ -50,7 +51,7 @@ class FraudReviewQueueControllerSecurityTest {
 
     @Test
     void shouldAllowQueueWithFraudReviewPermission() throws Exception {
-        when(service.listOpenCases()).thenReturn(List.of());
+        when(service.listOpenCases(null, null, null)).thenReturn(List.of());
 
         mockMvc.perform(get("/api/v1/fraud-review/cases")
                         .header("Authorization", "Bearer " + token(List.of("FRAUD_REVIEW"))))
@@ -60,17 +61,25 @@ class FraudReviewQueueControllerSecurityTest {
     @Test
     void shouldAllowClaimAndReleaseWithFraudReviewPermission() throws Exception {
         UUID paymentId = UUID.randomUUID();
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+
         FraudReviewCaseResponse response = new FraudReviewCaseResponse(
                 paymentId,
                 null,
                 "review@nexapay.test",
                 70,
                 "Manual review required",
-                OffsetDateTime.now(ZoneOffset.UTC),
+                now,
                 "fraud-review-security-test",
-                OffsetDateTime.now(ZoneOffset.UTC),
-                OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(15),
-                false
+                now,
+                now.plusMinutes(15),
+                false,
+                FraudReviewPriority.P2,
+                now.plusMinutes(30),
+                false,
+                null,
+                0,
+                1800
         );
 
         when(service.claim(eq(paymentId), anyString()))

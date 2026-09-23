@@ -1,5 +1,6 @@
 package br.com.nexapay.payment.api;
 
+import br.com.nexapay.payment.domain.FraudReviewPriority;
 import br.com.nexapay.payment.service.FraudReviewQueueService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -20,8 +21,18 @@ public class FraudReviewQueueController {
     }
 
     @GetMapping
-    public List<FraudReviewCaseResponse> listOpenCases() {
-        return service.listOpenCases();
+    public List<FraudReviewCaseResponse> listOpenCases(
+            @RequestParam(required = false)
+            FraudReviewPriority priority,
+            @RequestParam(required = false)
+            Boolean overdue,
+            @RequestParam(required = false)
+            Boolean available) {
+        return service.listOpenCases(
+                priority,
+                overdue,
+                available
+        );
     }
 
     @PostMapping("/{paymentId}/claim")

@@ -89,7 +89,8 @@ Sprint 14 — PIX Recorrente           ✅ Concluída
 Sprint 15 — Cancelamento e Auditoria ✅ Concluída
 Sprint 16 — Fraud Decision State     ✅ Concluída
 Sprint 17 — Manual Fraud Review       ✅ Concluída
-Sprint 18 — Fraud Review Queue        🚧 Em evolução
+Sprint 18 — Fraud Review Queue        ✅ Concluída
+Sprint 19 — Fraud Review SLA          🚧 Em evolução
 ```
 
 ---
@@ -228,7 +229,7 @@ GET  /api/v1/payments/{id}/cancellations
 GET  /api/v1/payments/pix/recurring/{id}/cancellations
 POST /api/v1/payments/{id}/fraud-review
 GET  /api/v1/payments/{id}/fraud-review/history
-GET  /api/v1/fraud-review/cases
+GET  /api/v1/fraud-review/cases?priority=P1&overdue=false&available=true
 POST /api/v1/fraud-review/cases/{id}/claim
 POST /api/v1/fraud-review/cases/{id}/release
 ```
@@ -503,7 +504,7 @@ Destaques:
 
 ---
 
-# Sprint 18 — Fraud Review Queue 🚧
+# Sprint 18 — Fraud Review Queue ✅
 
 A Sprint 18 transforma pagamentos em `REVIEW` em **casos operacionais com ownership temporário**.
 
@@ -538,6 +539,48 @@ Destaques:
 - resolução do caso e decisão do pagamento compartilham a mesma transação;
 - fila expõe amount, PIX key, risk score, reason e owner atual;
 - Testcontainers valida disputa real entre analistas.
+
+---
+
+# Sprint 19 — Fraud Review SLA & Escalation 🚧
+
+A Sprint 19 adiciona **priorização, deadline, escalonamento e observabilidade operacional** à Fraud Review Queue.
+
+- [SPEC Fraud Review SLA v1](docs/specs/fraud-review-sla-v1/README.md)
+- [ADR-012 — SLA com prioridade persistida](docs/adr/ADR-012-fraud-review-sla-priority-escalation.md)
+
+```text
+Fraud Review Case OPEN
+        |
+        +-- P1 -> 15 min
+        +-- P2 -> 30 min
+        +-- P3 -> 60 min
+        |
+        v
+sla_due_at
+        |
+        +-- on time --> normal review
+        |
+        +-- overdue --> escalated_at + metrics + alert
+```
+
+Política inicial:
+
+- **P1**: riskScore >= 85 ou amount >= R$ 9.000;
+- **P2**: riskScore >= 80 ou amount >= R$ 7.500;
+- **P3**: demais casos em revisão.
+
+Destaques:
+
+- prioridade e `sla_due_at` persistidos;
+- migration com backfill para casos existentes;
+- ordenação P1 → P2 → P3 e deadline mais próximo;
+- filtros por prioridade, overdue e disponibilidade;
+- monitor periódico marca casos vencidos como escalados;
+- gauges Prometheus de backlog, overdue, P1 overdue e idade do caso mais antigo;
+- alertas Prometheus para breach de SLA e backlog;
+- dashboard Grafana `NexaPay Fraud Review Operations`;
+- Testcontainers valida política, ordenação, filtros e escalonamento.
 
 ---
 

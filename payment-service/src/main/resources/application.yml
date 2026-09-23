@@ -91,6 +91,16 @@ nexapay:
   outbox:
     fixed-delay-ms: 2000
     kafka-publish-timeout: ${NEXAPAY_KAFKA_PUBLISH_TIMEOUT:10s}
+  payment:
+    fraud-review:
+      lease-duration: ${NEXAPAY_FRAUD_REVIEW_LEASE_DURATION:15m}
+      sla:
+        p1: ${NEXAPAY_FRAUD_REVIEW_SLA_P1:15m}
+        p2: ${NEXAPAY_FRAUD_REVIEW_SLA_P2:30m}
+        p3: ${NEXAPAY_FRAUD_REVIEW_SLA_P3:60m}
+      sla-monitor:
+        fixed-delay-ms: ${NEXAPAY_FRAUD_REVIEW_SLA_MONITOR_DELAY_MS:30000}
+        initial-delay-ms: ${NEXAPAY_FRAUD_REVIEW_SLA_MONITOR_INITIAL_DELAY_MS:5000}
   security:
     jwt:
       issuer: https://nexapay.local/auth
