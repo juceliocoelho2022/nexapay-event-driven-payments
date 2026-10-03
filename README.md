@@ -5,11 +5,11 @@
 </p>
 
 <p align="center">
-  <strong>Event-Driven Payment Platform</strong>
+  <strong>Distributed Payment Engineering Case</strong>
 </p>
 
 <p align="center">
-  Plataforma de pagamentos distribuída construída com Java 21, Spring Boot, Apache Kafka, PostgreSQL, Transactional Outbox, Spring Security e observabilidade com Prometheus, Grafana, Loki, Alloy, OpenTelemetry e Grafana Tempo.
+  O NexaPay modela um sistema de pagamentos distribuído que precisa preservar invariantes financeiras diante de retries, redelivery, concorrência e falhas parciais.
 </p>
 
 <p align="center">
@@ -24,12 +24,169 @@
 
 ---
 
+## Business Problem
 
-> **Engineering decisions & trade-offs:** [docs/engineering-decisions.md](docs/engineering-decisions.md) — contexto, alternativas consideradas, custos das escolhas, estratégia de testes e diagnóstico operacional.
+Pagamentos digitais não podem assumir que uma requisição chegará uma única vez ou que todas as dependências estarão disponíveis ao mesmo tempo. Um cliente pode repetir um PIX depois de um timeout sem saber se a operação anterior foi aceita; um broker pode redeliverar eventos; duas threads podem disputar o mesmo saldo; banco e Kafka podem falhar em momentos diferentes.
 
-> **AI-assisted engineering:** [AGENTS.md](AGENTS.md) · [PIX Payment SPEC](docs/specs/pix-payment-v1/README.md) · [ADR-005 SDD + AI](docs/adr/ADR-005-spec-driven-ai-assisted-development.md) · [AI workflows](.ai/workflows/feature-development.md)
+O problema central do NexaPay é, portanto:
 
-### Engineering workflow: SDD + AI
+> **Como preservar invariantes financeiras em um fluxo distribuído sujeito a retries, redelivery, concorrência e falhas parciais sem depender de uma garantia exactly-once global?**
+
+O projeto é um case de portfólio. Ele demonstra comportamentos, decisões e evidências presentes no repositório; não reivindica throughput, disponibilidade, latência ou escala de produção sem medição específica.
+
+➡️ [Business Case e regras do domínio](docs/business-case.md)
+
+---
+
+## Financial Invariants / Failure Modes
+
+| Falha / risco | Impacto de negócio | Proteção usada no projeto |
+|---|---|---|
+| retry do cliente envia a mesma intenção | pagamento duplicado | `Idempotency-Key` |
+| PostgreSQL confirma e publicação falha | estado financeiro sem evento correspondente | Transactional Outbox |
+| Kafka reentrega mensagem | efeito financeiro/projeção duplicada | consumer idempotente + replay protection |
+| dois débitos disputam o mesmo saldo | saldo inconsistente | transação + PostgreSQL locking |
+| múltiplos schedulers veem o mesmo PIX | execução agendada duplicada | atomic claim `SCHEDULED -> PENDING` |
+| cancelamento compete com execução | duas transições incompatíveis | conditional state transition |
+| duas revisões humanas competem | decisão/auditoria inconsistente | transição atômica + ownership/lease |
+| falha percorre HTTP + Kafka | diagnóstico difícil | correlationId + metrics + logs + traces |
+
+As regras canônicas BR-001 a BR-010 e os requisitos FR/NFR estão em [docs/business-case.md](docs/business-case.md), incluindo a matriz regra → requisito → componente → SPEC/ADR → evidência.
+
+---
+
+## Critical Payment Flow
+
+```text
+Client
+  ↓
+API Gateway
+  ↓
+Payment Service
+  ├── authentication / authorization
+  ├── validation
+  └── Idempotency-Key
+  ↓
+PostgreSQL transaction
+  ├── payment state
+  └── outbox_event
+  ↓
+Outbox Publisher
+  ↓
+Kafka: nexapay.payment.created.v1
+  ↓
+Fraud Service
+  ├── APPROVED
+  ├── REVIEW
+  └── BLOCKED
+  ↓ Transactional Outbox
+Kafka: nexapay.fraud.decision-made.v1
+  ↓
+Payment Service
+  ├── APPROVED -> COMPLETED
+  ├── REVIEW   -> REVIEW
+  └── BLOCKED  -> REJECTED
+```
+
+### Semântica de entrega
+
+O NexaPay trabalha com semântica compatível com **at-least-once** nas fronteiras assíncronas. Isso significa que publicação e consumo podem ser repetidos em limites de falha; por isso, idempotência é parte do desenho tanto na entrada HTTP quanto nos consumidores.
+
+O projeto **não reivindica exactly-once global** entre PostgreSQL, publisher, Kafka e todos os consumidores.
+
+---
+
+## Engineering Decisions & Trade-offs
+
+### PostgreSQL — fonte transacional e árbitro de concorrência
+
+**Problema resolvido:** preservar saldo e transições críticas quando múltiplas operações competem pelo mesmo estado.
+
+O projeto usa transações, `PESSIMISTIC_WRITE` no fluxo de conta quando aplicável, claims atômicos e conditional updates em fluxos como agendamento, cancelamento e revisão de fraude.
+
+**Trade-off:** locking e conditional updates podem gerar contenção; exigem índices, transações curtas e testes de concorrência com banco real.
+
+### Transactional Outbox — dual write
+
+**Problema resolvido:** evitar depender de duas operações independentes — commit no PostgreSQL e publish no Kafka — como se fossem uma transação única.
+
+Estado de domínio e intenção de publicação são persistidos na mesma transação local. O publisher envia o evento depois do commit.
+
+**Trade-off:** adiciona tabela/estado de Outbox, publisher, retry, backlog e necessidade de monitoramento.
+
+### Kafka — desacoplamento assíncrono
+
+**Problema resolvido:** Payment, Ledger e Fraud não precisam executar todos de forma síncrona na mesma requisição.
+
+Kafka permite consumers independentes, retenção/replay e integração com os fluxos event-driven do projeto.
+
+**Trade-off:** aumenta complexidade operacional e não elimina redelivery; consumidores precisam ser idempotentes.
+
+### Retry + DLT — falhas transitórias e isolamento
+
+**Problema resolvido:** uma indisponibilidade temporária não deve ser tratada como falha definitiva, mas um erro permanente também não deve entrar em retry infinito.
+
+**Trade-off:** políticas ruins de retry podem aumentar atraso, pressão downstream ou esconder a causa raiz. Replay deve ser controlado e idempotente.
+
+### JWT + authorities — segregação de operações sensíveis
+
+**Problema resolvido:** conhecer um endpoint não deve ser suficiente para cancelar pagamentos ou revisar fraude.
+
+O projeto usa Spring Security, JWT, roles e authorities como `PAYMENT_CANCEL`, `PAYMENT_READ` e `FRAUD_REVIEW` de acordo com o fluxo.
+
+**Trade-off:** autorização distribuída exige configuração e testes consistentes entre serviços.
+
+### Observability — reconstrução do caminho da operação
+
+**Problema resolvido:** uma falha pode atravessar API Gateway, Payment Service, Outbox, Kafka e Fraud Service.
+
+Micrometer/Prometheus/Grafana, logs estruturados via Alloy/Loki e OpenTelemetry/Tempo permitem correlacionar sinais e investigar o fluxo.
+
+**Trade-off:** telemetria tem custo de instrumentação, armazenamento e operação; os sinais precisam responder perguntas operacionais concretas.
+
+➡️ [Engineering Decisions completas](docs/engineering-decisions.md)
+
+---
+
+## Evidence / Tests / Observability
+
+A evidência do projeto é orientada ao risco que está sendo protegido:
+
+- JUnit 5, Mockito e MockMvc para regras e contratos HTTP;
+- Spring Security Test para autorização;
+- Testcontainers/PostgreSQL para concorrência e transições dependentes do banco real;
+- testes de idempotência, retry, DLT e replay conforme o fluxo;
+- CI com GitHub Actions;
+- métricas de HTTP, JVM, Outbox, Kafka e fraude;
+- logs estruturados em JSON com correlationId;
+- distributed tracing entre HTTP e Kafka usando OpenTelemetry/Tempo;
+- SPECs e ADRs versionados com as decisões.
+
+### Evidência de tracing já documentada
+
+O repositório registra um fluxo observado no Tempo passando por:
+
+```text
+API Gateway
+  ↓ HTTP
+Payment Service
+  ↓ Transactional Outbox
+Kafka producer
+  ↓
+Fraud Service consumer
+```
+
+### Limite importante de evidência
+
+A Sprint 12 possui runbook, SLI/SLO targets, regras Prometheus e procedimentos de failure drill, mas o próprio repositório mantém o **pacote final de runtime evidence** como pendente. Ele não é tratado aqui como concluído.
+
+A Sprint 19 também permanece **em evolução** enquanto esse for o status registrado no README.
+
+➡️ [Portfolio Case Study — roteiro para entrevistas](docs/PORTFOLIO_CASE_STUDY.md)
+
+---
+
+## Engineering workflow: SDD + AI
 
 O NexaPay usa IA como acelerador de engenharia, não como fonte de verdade. Mudanças relevantes seguem um fluxo verificável:
 
@@ -46,77 +203,7 @@ Problem
 
 Guardrails para agentes, skills e workflows reutilizáveis são versionados junto com o código para manter contexto, invariantes e critérios de qualidade explícitos.
 
-## Technical Snapshot
-
-| Focus | Evidence in this project |
-|---|---|
-| Target roles | Java Backend Developer · Backend Engineer · Software Engineer |
-| Architecture | Microservices · Event-Driven Architecture · Distributed Systems |
-| Backend | Java 21 · Spring Boot · Spring Web · Spring Data JPA · Spring Security |
-| Messaging & resilience | Apache Kafka · Transactional Outbox · Idempotency · Retry · DLT |
-| Data | PostgreSQL · Redis · Flyway |
-| Observability | OpenTelemetry · Prometheus · Grafana · Loki · Tempo |
-| Quality & delivery | JUnit 5 · Mockito · MockMvc · Testcontainers · Docker · GitHub Actions |
-
-**Engineering highlights:** fluxo PIX distribuído, processamento assíncrono, segurança JWT, semântica at-least-once com consumidores idempotentes, observabilidade ponta a ponta e tracing distribuído entre HTTP e Kafka.
-
-**Keywords:** `Java Backend` `Spring Boot` `Microservices` `Apache Kafka` `REST API` `PostgreSQL` `Redis` `Docker` `CI/CD` `Distributed Systems` `Event-Driven Architecture` `Observability`
-
----
-
-
-## Sobre o projeto
-
-O **NexaPay** é um projeto de portfólio de engenharia de software backend Java voltado a sistemas financeiros distribuídos e orientados a eventos. A arquitetura explora comunicação síncrona e assíncrona, segurança, resiliência, CI/CD e os três pilares de observabilidade: **métricas, logs e traces**.
-
-### Status
-
-```text
-Sprint 1  — Payment Service          ✅ Concluída
-Sprint 2  — Account Service          ✅ Concluída
-Sprint 3  — Ledger Service           ✅ Concluída
-Sprint 4  — Fraud Service            ✅ Concluída
-Sprint 5  — Segurança                ✅ Concluída
-Sprint 6  — Resiliência              ✅ Concluída
-Sprint 7  — Observabilidade          ✅ Concluída
-Sprint 8  — API Gateway              ✅ Concluída
-Sprint 9  — Frontend                 ✅ Concluída
-Sprint 10 — CI/CD e Cloud            ✅ Concluída
-Sprint 11 — Observabilidade avançada ✅ Concluída
-Sprint 12 — Production Hardening     🚧 Em evolução
-Sprint 13 — PIX Agendado             ✅ Concluída
-Sprint 14 — PIX Recorrente           ✅ Concluída
-Sprint 15 — Cancelamento e Auditoria ✅ Concluída
-Sprint 16 — Fraud Decision State     ✅ Concluída
-Sprint 17 — Manual Fraud Review       ✅ Concluída
-Sprint 18 — Fraud Review Queue        ✅ Concluída
-Sprint 19 — Fraud Review SLA          🚧 Em evolução
-```
-
----
-
-## Galeria do projeto
-
-### Visão geral
-<p align="center"><img src="docs/images/NEXA01.png" alt="NexaPay visão geral" width="900"/></p>
-
-### Stack tecnológica
-<p align="center"><img src="docs/images/NEXA02.png" alt="NexaPay stack tecnológica" width="900"/></p>
-
-### Arquitetura e fluxo de eventos
-<p align="center"><img src="docs/images/NEXA03.png" alt="NexaPay arquitetura" width="900"/></p>
-
-### Evolução das sprints
-<p align="center"><img src="docs/images/NEXA04.png" alt="NexaPay evolução das sprints" width="900"/></p>
-
-### Frontend
-<p align="center"><img src="docs/images/NEXA05.png" alt="NexaPay frontend" width="900"/></p>
-
-### Ambiente integrado
-<p align="center"><img src="docs/images/NEXA06.png" alt="NexaPay ambiente integrado" width="900"/></p>
-
-### Containers Docker
-<p align="center"><img src="docs/images/nexaDocker.png" alt="NexaPay containers Docker" width="900"/></p>
+**Referências:** [AGENTS.md](AGENTS.md) · [PIX Payment SPEC](docs/specs/pix-payment-v1/README.md) · [ADR-005 SDD + AI](docs/adr/ADR-005-spec-driven-ai-assisted-development.md) · [AI workflows](.ai/workflows/feature-development.md)
 
 ---
 
@@ -151,15 +238,26 @@ Observabilidade
   Traces  -> OpenTelemetry / OTLP -> Tempo -> Grafana
 ```
 
-### Semântica de eventos
-
-Os produtores usam **Transactional Outbox** para persistir alteração de domínio e evento na mesma transação local. A publicação e o consumo Kafka trabalham com semântica **at-least-once**; por isso, os consumidores são projetados para idempotência e reprocessamento. O projeto não reivindica exactly-once global.
-
 ---
 
-## Stack
+## Technical Snapshot / Stack
+
+| Focus | Evidence in this project |
+|---|---|
+| Target roles | Java Backend Developer · Backend Engineer · Software Engineer |
+| Architecture | Microservices · Event-Driven Architecture · Distributed Systems |
+| Backend | Java 21 · Spring Boot 3.5.16 · Spring Web · Spring Data JPA · Spring Security |
+| Messaging & resilience | Apache Kafka 3.9.x · Transactional Outbox · Idempotency · Retry · DLT |
+| Data | PostgreSQL 17 · Redis · Flyway |
+| Observability | OpenTelemetry · Prometheus · Grafana · Loki · Tempo |
+| Quality & delivery | JUnit 5 · Mockito · MockMvc · Testcontainers · Docker · GitHub Actions |
+
+**Engineering highlights:** fluxo PIX distribuído, processamento assíncrono, segurança JWT, `at-least-once` com consumidores idempotentes, concorrência via PostgreSQL e observabilidade ponta a ponta.
+
+**Keywords:** `Java Backend` `Spring Boot` `Microservices` `Apache Kafka` `REST API` `PostgreSQL` `Redis` `Docker` `CI/CD` `Distributed Systems` `Event-Driven Architecture` `Observability`
 
 ### Backend
+
 - Java 21
 - Spring Boot 3.5.16
 - Spring Web
@@ -169,6 +267,7 @@ Os produtores usam **Transactional Outbox** para persistir alteração de domín
 - Maven
 
 ### Dados e mensageria
+
 - PostgreSQL 17
 - Flyway
 - Apache Kafka 3.9.x
@@ -177,6 +276,7 @@ Os produtores usam **Transactional Outbox** para persistir alteração de domín
 - Dead Letter Topics
 
 ### Observabilidade
+
 - Spring Boot Actuator
 - Micrometer
 - Prometheus
@@ -192,6 +292,7 @@ Os produtores usam **Transactional Outbox** para persistir alteração de domín
 - métricas JVM, HTTP, Outbox, Kafka e fraude
 
 ### Testes e infraestrutura
+
 - JUnit 5
 - Mockito
 - Spring Boot Test
@@ -201,6 +302,61 @@ Os produtores usam **Transactional Outbox** para persistir alteração de domín
 - Docker / Docker Compose
 - GitHub Actions
 - CI/CD e build de imagens Docker
+
+---
+
+## Sobre o projeto
+
+O **NexaPay** é um projeto de portfólio de engenharia de software backend Java voltado a sistemas financeiros distribuídos e orientados a eventos. A arquitetura explora comunicação síncrona e assíncrona, segurança, resiliência, concorrência, CI/CD e os três pilares de observabilidade: **métricas, logs e traces**.
+
+### Status
+
+```text
+Sprint 1  — Payment Service          ✅ Concluída
+Sprint 2  — Account Service          ✅ Concluída
+Sprint 3  — Ledger Service           ✅ Concluída
+Sprint 4  — Fraud Service            ✅ Concluída
+Sprint 5  — Segurança                ✅ Concluída
+Sprint 6  — Resiliência              ✅ Concluída
+Sprint 7  — Observabilidade          ✅ Concluída
+Sprint 8  — API Gateway              ✅ Concluída
+Sprint 9  — Frontend                 ✅ Concluída
+Sprint 10 — CI/CD e Cloud            ✅ Concluída
+Sprint 11 — Observabilidade avançada ✅ Concluída
+Sprint 12 — Production Hardening     🚧 Em evolução
+Sprint 13 — PIX Agendado             ✅ Concluída
+Sprint 14 — PIX Recorrente           ✅ Concluída
+Sprint 15 — Cancelamento e Auditoria ✅ Concluída
+Sprint 16 — Fraud Decision State     ✅ Concluída
+Sprint 17 — Manual Fraud Review      ✅ Concluída
+Sprint 18 — Fraud Review Queue       ✅ Concluída
+Sprint 19 — Fraud Review SLA         🚧 Em evolução
+```
+
+---
+
+## Galeria do projeto
+
+### Visão geral
+<p align="center"><img src="docs/images/NEXA01.png" alt="NexaPay visão geral" width="900"/></p>
+
+### Stack tecnológica
+<p align="center"><img src="docs/images/NEXA02.png" alt="NexaPay stack tecnológica" width="900"/></p>
+
+### Arquitetura e fluxo de eventos
+<p align="center"><img src="docs/images/NEXA03.png" alt="NexaPay arquitetura" width="900"/></p>
+
+### Evolução das sprints
+<p align="center"><img src="docs/images/NEXA04.png" alt="NexaPay evolução das sprints" width="900"/></p>
+
+### Frontend
+<p align="center"><img src="docs/images/NEXA05.png" alt="NexaPay frontend" width="900"/></p>
+
+### Ambiente integrado
+<p align="center"><img src="docs/images/NEXA06.png" alt="NexaPay ambiente integrado" width="900"/></p>
+
+### Containers Docker
+<p align="center"><img src="docs/images/nexaDocker.png" alt="NexaPay containers Docker" width="900"/></p>
 
 ---
 
@@ -582,6 +738,8 @@ Destaques:
 - dashboard Grafana `NexaPay Fraud Review Operations`;
 - Testcontainers valida política, ordenação, filtros e escalonamento.
 
+> **Status:** a Sprint 19 permanece em evolução; a existência desses artefatos não transforma o sprint em concluído enquanto o status do projeto continuar 🚧.
+
 ---
 
 # Sprint 12 — Production Hardening e Distributed Tracing 🚧
@@ -795,6 +953,33 @@ powershell -ExecutionPolicy Bypass -File .\scripts\test-sprint7-observability.ps
 
 ---
 
+## Documentação principal
+
+### Negócio e apresentação
+
+- [Business Case e Domain Rules](docs/business-case.md)
+- [Portfolio Case Study](docs/PORTFOLIO_CASE_STUDY.md)
+- [Engineering Decisions](docs/engineering-decisions.md)
+
+### Especificações e ADRs
+
+- [PIX Payment SPEC](docs/specs/pix-payment-v1/README.md)
+- [Scheduled PIX SPEC](docs/specs/scheduled-pix-v1/README.md)
+- [Recurring PIX SPEC](docs/specs/recurring-pix-v1/README.md)
+- [Cancellation SPEC](docs/specs/cancellation-v1/README.md)
+- [Fraud Decision SPEC](docs/specs/fraud-decision-state-machine-v1/README.md)
+- [Manual Fraud Review SPEC](docs/specs/manual-fraud-review-v1/README.md)
+- [Fraud Review Queue SPEC](docs/specs/fraud-review-queue-v1/README.md)
+- [Fraud Review SLA SPEC](docs/specs/fraud-review-sla-v1/README.md)
+- [ADRs](docs/adr/)
+
+### Operação
+
+- [Distributed Observability](docs/SPRINT11-DISTRIBUTED-OBSERVABILITY.md)
+- [Production Hardening](docs/production-hardening.md)
+
+---
+
 ## Limitações conhecidas
 
 - JWT usa HS256 com segredo compartilhado no ambiente atual;
@@ -805,7 +990,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\test-sprint7-observability.ps
 - replay de DLT é operacional e controlado;
 - o Ledger não é double-entry;
 - credenciais e segredos locais devem ser endurecidos antes de produção;
-- hardening de produção e deploy cloud real continuam como evoluções da Sprint 12.
+- hardening de produção e deploy cloud real continuam como evoluções da Sprint 12;
+- o projeto não apresenta números formais de throughput/latência/disponibilidade como resultados de produção sem benchmark correspondente.
 
 ---
 
